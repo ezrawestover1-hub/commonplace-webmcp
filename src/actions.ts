@@ -23,7 +23,7 @@ export const workspaceActions = {
     const created = objects.map((object) => ({ ...object, createdBy: actor, modifiedBy: actor, version: 1 }));
     return withEvent({ ...state, objects: [...state.objects, ...created] }, actor, `Created ${created.length} ${created.length === 1 ? "object" : "objects"}`, created.map((object) => object.id));
   },
-  moveObjects: (state: WorkspaceState, moves: Array<{ id: string; x: number; y: number }>, actor: Actor): WorkspaceState => {
+  moveObjects: (state: WorkspaceState, moves: Array<{ id: string; x: number; y: number }>, actor: Actor, ungroup = false): WorkspaceState => {
     if (actor === "agent" && !state.permissions.reorganize) throw new Error("The agent does not have reorganize permission.");
     const ids = new Set(moves.map((move) => move.id));
     for (const object of state.objects.filter((candidate) => ids.has(candidate.id))) {
@@ -32,9 +32,9 @@ export const workspaceActions = {
     const positions = new Map(moves.map((move) => [move.id, move]));
     const objects = state.objects.map((object) => {
       const move = positions.get(object.id);
-      return move ? { ...object, x: move.x, y: move.y, modifiedBy: actor, version: object.version + 1 } : object;
+      return move ? { ...object, x: move.x, y: move.y, ...(ungroup ? { groupId: undefined } : {}), modifiedBy: actor, version: object.version + 1 } : object;
     });
-    return withEvent({ ...state, objects }, actor, `Moved ${moves.length} ${moves.length === 1 ? "object" : "objects"}`, moves.map((move) => move.id));
+    return withEvent({ ...state, objects }, actor, `${ungroup ? "Pulled" : "Moved"} ${moves.length} ${moves.length === 1 ? "object" : "objects"}`, moves.map((move) => move.id));
   },
   groupObjects: (state: WorkspaceState, groupId: string, objectIds: string[], actor: Actor): WorkspaceState => {
     if (actor === "agent" && !state.permissions.reorganize) throw new Error("The agent does not have reorganize permission.");

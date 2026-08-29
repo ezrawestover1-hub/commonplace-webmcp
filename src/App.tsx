@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
-import { AlertTriangle, ArrowLeftRight, Bot, Check, ChevronDown, ChevronRight, CircleCheckBig, CircleHelp, Clock3, Eye, FileText, Grip, Hand, History, LayoutGrid, LockKeyhole, MoreHorizontal, MousePointer2, Network, Pencil, Play, Plus, Radio, ScanSearch, Search, Settings, Sparkles, Undo2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bot, Check, ChevronDown, ChevronRight, CircleCheckBig, Clock3, Eye, FileText, Hand, History, LayoutGrid, LockKeyhole, MousePointer2, Network, Pencil, Play, Plus, Radio, ScanSearch, Search, Sparkles, Undo2, X } from "lucide-react";
 import { workspaceActions } from "./actions";
 import { createAuroraWorkspace, createResearchWorkspace } from "./data";
 import type { ActivityEvent, WorkspaceObject, WorkspaceState } from "./types";
@@ -19,6 +19,8 @@ export function App() {
   const [showPresent, setShowPresent] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [filter, setFilter] = useState("");
   const [webmcp, setWebmcp] = useState({ supported: false, toolCount: 0 });
   const [trace, setTrace] = useState<ToolTraceEvent[]>([]);
   const [focusIds, setFocusIds] = useState<string[]>([]);
@@ -26,22 +28,34 @@ export function App() {
   const [showTrace, setShowTrace] = useState(true);
   const latest = useRef(workspace);
   const undoStack = useRef<WorkspaceState[]>([]);
+  const redoStack = useRef<WorkspaceState[]>([]);
   latest.current = workspace;
 
   const applyWorkspace = useCallback((action: SetStateAction<WorkspaceState>) => {
-    setWorkspace((current) => {
-      const next = typeof action === "function" ? action(current) : action;
-      if (next !== current) undoStack.current = [...undoStack.current.slice(-19), current];
-      return next;
-    });
+    const current = latest.current;
+    const next = typeof action === "function" ? action(current) : action;
+    if (next === current) return;
+    undoStack.current = [...undoStack.current.slice(-19), current];
+    redoStack.current = [];
+    setWorkspace(next);
     setCanUndo(true);
+    setCanRedo(false);
   }, []);
 
   const undo = useCallback(() => {
     const previous = undoStack.current.pop();
     if (!previous) return;
+    redoStack.current = [...redoStack.current.slice(-19), latest.current];
     setWorkspace(previous);
     setCanUndo(undoStack.current.length > 0);
+    setCanRedo(true);
+  }, []);
+
+  const redo = useCallback(() => {
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current = [...undoStack.current.slice(-19), latest.current];
+    setWorkspace(next); setCanUndo(true); setCanRedo(redoStack.current.length > 0);
   }, []);
 
   const appendTrace = useCallback((event: ToolTraceEvent) => setTrace((current) => [...current.slice(-11), event]), []);
@@ -81,23 +95,25 @@ export function App() {
     }, 1850);
   }, [appendTrace, applyWorkspace]);
 
-  const switchExample = (next: WorkspaceExample) => { setExample(next); undoStack.current = []; setCanUndo(false); setWorkspace(next === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); setHome(false); };
-  const reset = () => { undoStack.current = []; setCanUndo(false); setWorkspace(example === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); };
+  const switchExample = (next: WorkspaceExample) => { setExample(next); undoStack.current = []; redoStack.current = []; setCanUndo(false); setCanRedo(false); setWorkspace(next === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); setHome(false); };
+  const reset = () => { undoStack.current = []; redoStack.current = []; setCanUndo(false); setCanRedo(false); setFilter(""); setWorkspace(example === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); };
+  const createObject = (type: WorkspaceObject["type"]) => applyWorkspace((current) => workspaceActions.createObjects(current, [{ id: `${type}-${Date.now()}`, type, title: type === "task" ? "New shared task" : type === "decision" ? "New human decision" : type === "group" ? "New workspace group" : "New shared note", content: type === "decision" ? "Needs a human decision" : "Created by a human", x: 430, y: 650, status: type === "decision" ? "unresolved" : "open", approval: type === "decision" ? "pending" : "not_required" }], "human"));
+  const connectSelected = () => applyWorkspace((current) => { const from = current.selectedId; const to = from === "launch-date" ? "beta-feedback" : "launch-date"; if (current.connections.some((connection) => connection.from === from && connection.to === to)) return current; return workspaceActions.connect(current, { from, to, relationship: "related_to" }, "human"); });
 
   if (home) return <Landing onOpen={switchExample} />;
 
   return <main className={`app-shell v2-shell ${showPresent ? "presenting" : ""}`}>
-    {!showPresent && <Sidebar onReset={reset} onUndo={undo} canUndo={canUndo} guideStep={guideStep} onStart={runGuidedCollaboration} />}
+    {!showPresent && <Sidebar onReset={reset} onUndo={undo} onRedo={redo} canUndo={canUndo} canRedo={canRedo} filter={filter} onFilter={setFilter} guideStep={guideStep} onStart={runGuidedCollaboration} />}
     <section className="workspace-shell">
       {!showPresent && <Header name={workspace.name} webmcp={webmcp} onStart={runGuidedCollaboration} onPresent={() => setShowPresent(true)} onSwitch={() => switchExample(example === "aurora" ? "research" : "aurora")} />}
       <div className="workspace-body">
-        <Canvas workspace={workspace} groups={groups} cardById={cardById} focusIds={focusIds} onSelect={(id) => applyWorkspace((current) => workspaceActions.select(current, id))} onMove={(id, x, y) => applyWorkspace((current) => workspaceActions.moveObjects(current, [{ id, x, y }], "human"))} />
+        <Canvas workspace={workspace} groups={groups} cardById={cardById} focusIds={focusIds} filter={filter} onSelect={(id) => { setShowTrace(false); applyWorkspace((current) => workspaceActions.select(current, id)); }} onMove={(id, x, y, ungroup) => applyWorkspace((current) => workspaceActions.moveObjects(current, [{ id, x, y }], "human", ungroup))} />
         <PlayBlock />
         {showPresent && <button className="exit-present" onClick={() => setShowPresent(false)}><X size={16} /> Exit present mode</button>}
-        {!showPresent && <CanvasControls onRun={runAgent} isRunning={isRunning} onAdd={() => applyWorkspace((current) => workspaceActions.createObjects(current, [{ id: `note-${Date.now()}`, type: "note", title: "New shared note", content: "Created by a human", x: 430, y: 665, approval: "not_required" }], "human"))} />}
+        {!showPresent && <CanvasControls onRun={runAgent} isRunning={isRunning} onCreate={createObject} onConnect={connectSelected} />}
       </div>
     </section>
-    {!showPresent && <Inspector selected={selected} workspace={workspace} trace={trace} showTrace={showTrace} focusIds={focusIds} onTraceClick={(event) => { setFocusIds(event.objectIds ?? []); event.objectIds?.[0] && applyWorkspace((current) => workspaceActions.select(current, event.objectIds![0])); }} onToggleTrace={() => setShowTrace((value) => !value)} onUpdate={(id, patch) => applyWorkspace((current) => workspaceActions.updateObject(current, id, patch, "human"))} onAccept={() => { applyWorkspace((current) => workspaceActions.acceptProposal(current)); appendTrace({ id: `human-${Date.now()}`, tool: "human_accepted_proposal", summary: "Human accepted the proposed October 21 decision. The shared canonical object updated.", objectIds: ["launch-date"], at: "now", outcome: "success" }); setGuideStep(3); setShowTrace(true); setFocusIds(["launch-date"]); }} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
+    {!showPresent && <Inspector selected={selected} workspace={workspace} trace={trace} showTrace={showTrace} focusIds={focusIds} onTraceClick={(event) => { setFocusIds(event.objectIds ?? []); event.objectIds?.[0] && applyWorkspace((current) => workspaceActions.select(current, event.objectIds![0])); }} onShowObject={() => setShowTrace(false)} onShowTrace={() => setShowTrace(true)} onUpdate={(id, patch) => applyWorkspace((current) => workspaceActions.updateObject(current, id, patch, "human"))} onToggleLock={(id, locked) => applyWorkspace((current) => workspaceActions.updateObject(current, id, { locked }, "human"))} onVerifyLock={(object) => { try { workspaceActions.updateObject(latest.current, object.id, { content: "Agent attempted an edit" }, "agent"); } catch (error) { appendTrace({ id: `blocked-${Date.now()}`, tool: "update_objects", summary: error instanceof Error ? error.message : "The human lock blocked the agent.", objectIds: [object.id], at: "now", outcome: "error" }); setShowTrace(true); } }} onAccept={() => { applyWorkspace((current) => workspaceActions.acceptProposal(current)); appendTrace({ id: `human-${Date.now()}`, tool: "human_accepted_proposal", summary: "Human accepted the proposed October 21 decision. The shared canonical object updated.", objectIds: ["launch-date"], at: "now", outcome: "success" }); setGuideStep(3); setShowTrace(true); setFocusIds(["launch-date"]); }} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
     {showPermissions && <Permissions workspace={workspace} onToggle={(key) => applyWorkspace((current) => ({ ...current, permissions: { ...current.permissions, [key]: !current.permissions[key] } }))} onClose={() => setShowPermissions(false)} />}
   </main>;
 }
@@ -110,16 +126,15 @@ function Landing({ onOpen }: { onOpen: (example: WorkspaceExample) => void }) {
   </main>;
 }
 
-function Sidebar({ onReset, onUndo, canUndo, guideStep, onStart }: { onReset: () => void; onUndo: () => void; canUndo: boolean; guideStep: number; onStart: () => void }) {
+function Sidebar({ onReset, onUndo, onRedo, canUndo, canRedo, filter, onFilter, guideStep, onStart }: { onReset: () => void; onUndo: () => void; onRedo: () => void; canUndo: boolean; canRedo: boolean; filter: string; onFilter: (value: string) => void; guideStep: number; onStart: () => void }) {
   const steps = ["Orient together", "Surface the conflict", "Review the proposal", "Confirm shared state"];
   return <aside className="sidebar">
     <div className="brand"><span className="brand-mark" /> <strong>Commonplace</strong></div>
-    <section className="collaboration-guide"><span className="guide-kicker">Collaboration guide</span><h2>One decision. Shared context.</h2><p>Watch the person and agent work on the same object—not separate copies.</p><ol>{steps.map((step, index) => <li className={guideStep > index ? "complete" : guideStep === index ? "active" : ""} key={step}><b>{index + 1}</b><span>{step}<small>{["Read the plan together.", "Compare evidence and uncertainty.", "Keep the change reviewable.", "Apply only after human approval."][index]}</small></span></li>)}</ol><button className="guide-start" onClick={onStart}><Sparkles size={15} />Try the 60-second collaboration</button></section>
+    <section className="collaboration-guide"><span className="guide-kicker">Collaboration guide</span><h2>One decision. Shared context.</h2><p>Watch the person and agent work on the same object—not separate copies.</p><label className="workspace-filter"><Search size={14} /><input value={filter} onChange={(event) => onFilter(event.target.value)} placeholder="Filter workspace" /></label><ol>{steps.map((step, index) => <li className={guideStep > index ? "complete" : guideStep === index ? "active" : ""} key={step}><b>{index + 1}</b><span>{step}<small>{["Read the plan together.", "Compare evidence and uncertainty.", "Keep the change reviewable.", "Apply only after human approval."][index]}</small></span></li>)}</ol><button className="guide-start" onClick={onStart}><Sparkles size={15} />Try the 60-second collaboration</button></section>
     <div className="nav-spacer" />
     <button className="nav-item" onClick={onUndo} disabled={!canUndo}><Undo2 size={17} strokeWidth={1.65} /> Undo last change</button>
+    <button className="nav-item" onClick={onRedo} disabled={!canRedo}><History size={17} strokeWidth={1.65} /> Redo last change</button>
     <button className="nav-item" onClick={onReset}><Undo2 size={17} strokeWidth={1.65} /> Reset demo</button>
-    <button className="nav-item"><Settings size={17} strokeWidth={1.65} /> Settings</button>
-    <button className="nav-item"><CircleHelp size={17} strokeWidth={1.65} /> Help</button>
   </aside>;
 }
 
@@ -134,7 +149,8 @@ function Header({ name, webmcp, onStart, onPresent, onSwitch }: { name: string; 
   </header>;
 }
 
-function Canvas({ workspace, groups, cardById, focusIds, onSelect, onMove }: { workspace: WorkspaceState; groups: WorkspaceObject[]; cardById: Map<string, WorkspaceObject>; focusIds: string[]; onSelect: (id: string) => void; onMove: (id: string, x: number, y: number) => void }) {
+function Canvas({ workspace, groups, cardById, focusIds, filter, onSelect, onMove }: { workspace: WorkspaceState; groups: WorkspaceObject[]; cardById: Map<string, WorkspaceObject>; focusIds: string[]; filter: string; onSelect: (id: string) => void; onMove: (id: string, x: number, y: number, ungroup?: boolean) => void }) {
+  const matches = (object: WorkspaceObject) => !filter.trim() || `${object.title} ${object.content ?? ""} ${object.type}`.toLowerCase().includes(filter.toLowerCase());
   return <div className="canvas" aria-label="Commonplace shared workspace">
     <svg className="connections" aria-hidden="true" viewBox="0 0 920 780" preserveAspectRatio="none">
       <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="none" stroke="currentColor" strokeWidth="1.2" /></marker></defs>
@@ -146,26 +162,32 @@ function Canvas({ workspace, groups, cardById, focusIds, onSelect, onMove }: { w
         return <path key={connection.id} d={`M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ty}, ${tx} ${ty}`} markerEnd="url(#arrow)" />;
       })}
     </svg>
-    {groups.map((group) => <Group key={group.id} group={group} objects={workspace.objects.filter((object) => object.groupId === group.id)} selectedId={workspace.selectedId} focusIds={focusIds} onSelect={onSelect} onMove={onMove} />)}
-    {workspace.objects.filter((object) => !object.groupId && object.type !== "group").map((object) => <CanvasCard key={object.id} object={object} selected={object.id === workspace.selectedId} focused={focusIds.includes(object.id)} onSelect={onSelect} onMove={onMove} />)}
+    {groups.filter((group) => matches(group) || workspace.objects.some((object) => object.groupId === group.id && matches(object))).map((group) => <Group key={group.id} group={group} objects={workspace.objects.filter((object) => object.groupId === group.id && matches(object))} selectedId={workspace.selectedId} focusIds={focusIds} onSelect={onSelect} onMove={onMove} />)}
+    {workspace.objects.filter((object) => !object.groupId && object.type !== "group" && matches(object)).map((object) => <CanvasCard key={object.id} object={object} selected={object.id === workspace.selectedId} focused={focusIds.includes(object.id)} onSelect={onSelect} onMove={onMove} />)}
   </div>;
 }
 
-function Group({ group, objects, selectedId, focusIds, onSelect, onMove }: { group: WorkspaceObject; objects: WorkspaceObject[]; selectedId: string; focusIds: string[]; onSelect: (id: string) => void; onMove: (id: string, x: number, y: number) => void }) {
+function Group({ group, objects, selectedId, focusIds, onSelect, onMove }: { group: WorkspaceObject; objects: WorkspaceObject[]; selectedId: string; focusIds: string[]; onSelect: (id: string) => void; onMove: (id: string, x: number, y: number, ungroup?: boolean) => void }) {
   return <section className="group" style={{ left: `${(group.x / 920) * 100}%`, top: `${(group.y / 780) * 100}%` }}>
     <div className="group-title"><span>{groupIcon[group.title] ?? "✦"}</span><strong>{group.title}</strong><em>{objects.length} objects</em></div>
     <div className="group-stack">{objects.map((object) => <CanvasCard key={object.id} object={object} selected={object.id === selectedId} focused={focusIds.includes(object.id)} onSelect={onSelect} onMove={onMove} withinGroup />)}</div>
   </section>;
 }
 
-function CanvasCard({ object, selected, focused, onSelect, onMove, withinGroup = false }: { object: WorkspaceObject; selected: boolean; focused: boolean; onSelect: (id: string) => void; onMove: (id: string, x: number, y: number) => void; withinGroup?: boolean }) {
+function CanvasCard({ object, selected, focused, onSelect, onMove, withinGroup = false }: { object: WorkspaceObject; selected: boolean; focused: boolean; onSelect: (id: string) => void; onMove: (id: string, x: number, y: number, ungroup?: boolean) => void; withinGroup?: boolean }) {
   const Icon = typeIcon[object.type];
-  const drag = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false });
-  const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => { drag.current = { x: event.clientX, y: event.clientY, active: false }; event.currentTarget.setPointerCapture(event.pointerId); };
-  const onPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => { if (Math.abs(event.clientX - drag.current.x) + Math.abs(event.clientY - drag.current.y) > 6) drag.current.active = true; };
-  const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => { if (drag.current.active && !withinGroup) onMove(object.id, object.x + event.clientX - drag.current.x, object.y + event.clientY - drag.current.y); else onSelect(object.id); };
+  const drag = useRef<{ x: number; y: number; active: boolean; source: "pointer" | "mouse" | null }>({ x: 0, y: 0, active: false, source: null });
+  const startDrag = (x: number, y: number, source: "pointer" | "mouse") => { drag.current = { x, y, active: false, source }; };
+  const trackDrag = (x: number, y: number) => { if (Math.abs(x - drag.current.x) + Math.abs(y - drag.current.y) > 6) drag.current.active = true; };
+  const finishDrag = (x: number, y: number) => { if (drag.current.active) onMove(object.id, object.x + x - drag.current.x, object.y + y - drag.current.y, withinGroup); drag.current.source = null; };
+  const onPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => { startDrag(event.clientX, event.clientY, "pointer"); event.currentTarget.setPointerCapture(event.pointerId); };
+  const onPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => trackDrag(event.clientX, event.clientY);
+  const onPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); finishDrag(event.clientX, event.clientY); };
+  const onMouseDown = (event: React.MouseEvent<HTMLButtonElement>) => { if (drag.current.source !== "pointer") startDrag(event.clientX, event.clientY, "mouse"); };
+  const onMouseMove = (event: React.MouseEvent<HTMLButtonElement>) => { if (drag.current.source === "mouse") trackDrag(event.clientX, event.clientY); };
+  const onMouseUp = (event: React.MouseEvent<HTMLButtonElement>) => { if (drag.current.source === "mouse") finishDrag(event.clientX, event.clientY); };
   const decision = object.type === "decision";
-  return <button className={`canvas-card ${decision ? "decision-card" : ""} ${selected ? "selected" : ""} ${focused ? "focused" : ""} ${object.locked ? "locked" : ""}`} style={withinGroup ? undefined : { left: `${(object.x / 920) * 100}%`, top: `${(object.y / 780) * 100}%` }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
+  return <button className={`canvas-card ${decision ? "decision-card" : ""} ${selected ? "selected" : ""} ${focused ? "focused" : ""} ${object.locked ? "locked" : ""}`} style={withinGroup ? undefined : { left: `${(object.x / 920) * 100}%`, top: `${(object.y / 780) * 100}%` }} onClick={() => onSelect(object.id)} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
     <span className="card-icon"><Icon size={16} strokeWidth={1.7} /></span>
     <span className="card-copy"><strong>{object.title}</strong>{object.content && <small>{object.content}</small>}{object.priority && <small className="card-meta">{object.priority === "high" ? "P1" : "P2"} · {object.modifiedBy === "agent" ? "Agent updated" : "Human created"}</small>}</span>
     {object.locked && <LockKeyhole className="card-lock" size={15} />}
@@ -173,28 +195,28 @@ function CanvasCard({ object, selected, focused, onSelect, onMove, withinGroup =
   </button>;
 }
 
-function CanvasControls({ onRun, isRunning, onAdd }: { onRun: () => void; isRunning: boolean; onAdd: () => void }) {
-  return <><div className="canvas-tools"><button title="Add shared note" onClick={onAdd}><Plus size={18} /> Add note</button></div><button className="agent-demo-trigger" onClick={onRun} disabled={isRunning}><Bot size={17} />{isRunning ? "Agent is organizing…" : "Preview safe agent action"}</button></>;
+function CanvasControls({ onRun, isRunning, onCreate, onConnect }: { onRun: () => void; isRunning: boolean; onCreate: (type: WorkspaceObject["type"]) => void; onConnect: () => void }) {
+  return <><div className="canvas-tools"><button title="Create a shared note" onClick={() => onCreate("note")}><Plus size={16} /> Note</button><button title="Create a shared task" onClick={() => onCreate("task")}><Check size={16} /> Task</button><button title="Create a human decision" onClick={() => onCreate("decision")}><Sparkles size={16} /> Decision</button><button title="Create a workspace group" onClick={() => onCreate("group")}><LayoutGrid size={16} /> Group</button><button title="Link selected object to the launch decision" onClick={onConnect}><Network size={16} /> Link</button></div><button className="agent-demo-trigger" onClick={onRun} disabled={isRunning}><Bot size={17} />{isRunning ? "Agent is organizing…" : "Preview safe agent action"}</button></>;
 }
 
-function Inspector({ selected, workspace, trace, showTrace, onTraceClick, onToggleTrace, onUpdate, onAccept, onReject, onPermissions, showActivity }: { selected: WorkspaceObject; workspace: WorkspaceState; trace: ToolTraceEvent[]; showTrace: boolean; focusIds: string[]; onTraceClick: (event: ToolTraceEvent) => void; onToggleTrace: () => void; onUpdate: (id: string, patch: Partial<WorkspaceObject>) => void; onAccept: () => void; onReject: () => void; onPermissions: () => void; showActivity: boolean }) {
+function Inspector({ selected, workspace, trace, showTrace, onTraceClick, onShowObject, onShowTrace, onUpdate, onToggleLock, onVerifyLock, onAccept, onReject, onPermissions, showActivity }: { selected: WorkspaceObject; workspace: WorkspaceState; trace: ToolTraceEvent[]; showTrace: boolean; focusIds: string[]; onTraceClick: (event: ToolTraceEvent) => void; onShowObject: () => void; onShowTrace: () => void; onUpdate: (id: string, patch: Partial<WorkspaceObject>) => void; onToggleLock: (id: string, locked: boolean) => void; onVerifyLock: (object: WorkspaceObject) => void; onAccept: () => void; onReject: () => void; onPermissions: () => void; showActivity: boolean }) {
   const proposal = workspace.proposal;
   return <aside className="inspector v2-inspector">
-    <div className="inspector-tabs"><button className={!showTrace ? "active" : ""} onClick={onToggleTrace}><Pencil size={14} />Object</button><button className={showTrace ? "active" : ""} onClick={onToggleTrace}><ScanSearch size={14} />Agent trace</button></div>
+    <div className="inspector-tabs"><button className={!showTrace ? "active" : ""} onClick={onShowObject}><Pencil size={14} />Object</button><button className={showTrace ? "active" : ""} onClick={onShowTrace}><ScanSearch size={14} />Agent trace</button></div>
     {showTrace ? <TracePanel trace={trace} onSelect={onTraceClick} /> : <>
-    <div className="inspector-top"><span className="inspector-kind"><Sparkles size={15} /> {selected.type}</span><button><MoreHorizontal size={18} /></button></div>
+    <div className="inspector-top"><span className="inspector-kind"><Sparkles size={15} /> {selected.type}</span></div>
     <div className="inspector-title"><h2>{selected.title}</h2><p>{selected.content}</p><span className={selected.status === "confirmed" ? "state-chip confirmed" : "state-chip"}>{selected.status === "confirmed" ? "Human confirmed" : "Agent proposal"}</span></div>
-    <InlineEditor selected={selected} onUpdate={onUpdate} />
-    {proposal?.status === "pending" && selected.type === "decision" ? <Proposal proposal={proposal} onAccept={onAccept} onReject={onReject} /> : <DecisionDetails selected={selected} onPermissions={onPermissions} />}
+    <InlineEditor selected={selected} onUpdate={onUpdate} onToggleLock={onToggleLock} />
+    {proposal?.status === "pending" && selected.type === "decision" ? <Proposal proposal={proposal} onAccept={onAccept} onReject={onReject} /> : <DecisionDetails selected={selected} onPermissions={onPermissions} onVerifyLock={onVerifyLock} />}
     {showActivity && <ActivityPanel events={workspace.activity} />}
     </>}
   </aside>;
 }
 
-function InlineEditor({ selected, onUpdate }: { selected: WorkspaceObject; onUpdate: (id: string, patch: Partial<WorkspaceObject>) => void }) {
+function InlineEditor({ selected, onUpdate, onToggleLock }: { selected: WorkspaceObject; onUpdate: (id: string, patch: Partial<WorkspaceObject>) => void; onToggleLock: (id: string, locked: boolean) => void }) {
   const [editing, setEditing] = useState(false); const [title, setTitle] = useState(selected.title); const [content, setContent] = useState(selected.content ?? "");
   useEffect(() => { setTitle(selected.title); setContent(selected.content ?? ""); setEditing(false); }, [selected.id, selected.title, selected.content]);
-  if (!editing) return <button className="inline-edit" onClick={() => setEditing(true)}><Pencil size={14} /> Edit shared object</button>;
+  if (!editing) return <div className="object-actions"><button className="inline-edit" onClick={() => setEditing(true)}><Pencil size={14} /> Edit shared object</button><button className="lock-edit" onClick={() => onToggleLock(selected.id, !selected.locked)}><LockKeyhole size={13} />{selected.locked ? "Unlock for agent" : "Lock for agent"}</button></div>;
   return <section className="inline-editor"><label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Detail<textarea value={content} onChange={(event) => setContent(event.target.value)} /></label><div><button onClick={() => { onUpdate(selected.id, { title, content }); setEditing(false); }}><Check size={14} />Save</button><button onClick={() => setEditing(false)}>Cancel</button></div></section>;
 }
 
@@ -208,11 +230,11 @@ function TracePanel({ trace, onSelect }: { trace: ToolTraceEvent[]; onSelect: (e
 }
 
 function Proposal({ proposal, onAccept, onReject }: { proposal: NonNullable<WorkspaceState["proposal"]>; onAccept: () => void; onReject: () => void }) {
-  return <section className="proposal"><div className="proposal-heading"><span>Agent proposal</span><b>{proposal.confidence}% confidence</b></div><h3>{proposal.summary}</h3><p>{proposal.reason}</p><div className="proposal-impact">{proposal.changes.map((change) => <div key={change}><ArrowLeftRight size={14} />{change}</div>)}</div><button className="accept-button" onClick={onAccept}><Check size={16} />Accept all</button><button className="outline-action"><Grip size={16} />Modify</button><button className="outline-action reject" onClick={onReject}><X size={16} />Reject</button></section>;
+  return <section className="proposal"><div className="proposal-heading"><span>Agent proposal</span><b>{proposal.confidence}% confidence</b></div><h3>{proposal.summary}</h3><p>{proposal.reason}</p><div className="proposal-impact">{proposal.changes.map((change) => <div key={change}><ArrowLeftRight size={14} />{change}</div>)}</div><button className="accept-button" onClick={onAccept}><Check size={16} />Accept all</button><button className="outline-action reject" onClick={onReject}><X size={16} />Reject</button></section>;
 }
 
-function DecisionDetails({ selected, onPermissions }: { selected: WorkspaceObject; onPermissions: () => void }) {
-  return <section className="detail-list"><div><span>Type</span><b>{selected.type}</b></div>{selected.status && <div><span>Status</span><b>{selected.status === "confirmed" ? "Confirmed" : selected.status.replace("_", " ")}</b></div>}{selected.confidence !== undefined && <div><span>Confidence</span><b>{selected.confidence}%</b></div>}{selected.locked && <div><span>Human lock</span><b>Protected</b></div>}<div><span>Created by</span><b>{selected.createdBy === "agent" ? "Commonplace Agent" : "Ezra"}</b></div><div><span>Last modified by</span><b>{selected.modifiedBy === "agent" ? "Commonplace Agent" : "Ezra"}</b></div><button className="permission-link" onClick={onPermissions}><LockKeyhole size={15} /> View agent access</button></section>;
+function DecisionDetails({ selected, onPermissions, onVerifyLock }: { selected: WorkspaceObject; onPermissions: () => void; onVerifyLock: (object: WorkspaceObject) => void }) {
+  return <section className="detail-list"><div><span>Type</span><b>{selected.type}</b></div>{selected.status && <div><span>Status</span><b>{selected.status === "confirmed" ? "Confirmed" : selected.status.replace("_", " ")}</b></div>}{selected.confidence !== undefined && <div><span>Confidence</span><b>{selected.confidence}%</b></div>}{selected.locked && <div><span>Human lock</span><b>Protected</b></div>}<div><span>Created by</span><b>{selected.createdBy === "agent" ? "Commonplace Agent" : "Ezra"}</b></div><div><span>Last modified by</span><b>{selected.modifiedBy === "agent" ? "Commonplace Agent" : "Ezra"}</b></div>{selected.locked && <button className="boundary-test" onClick={() => onVerifyLock(selected)}><AlertTriangle size={14} /> Test agent boundary</button>}<button className="permission-link" onClick={onPermissions}><LockKeyhole size={15} /> View agent access</button></section>;
 }
 
 function ActivityPanel({ events }: { events: ActivityEvent[] }) {
