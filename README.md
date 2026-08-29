@@ -14,7 +14,7 @@ It was created for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) du
 
 Most web apps have a visual interface for people and a separate API for software. That forces an agent to either guess its way through pixels or maintain a parallel representation of the work.
 
-Commonplace makes the shared artifact canonical. A **human** can click, drag, edit, connect, decide, and lock objects. An **agent** can inspect, search, create, update, move, connect, propose, and request a decision through WebMCP. Neither gets a separate copy of the workspace.
+Commonplace makes the shared artifact canonical. A **human** can click, drag, edit, connect, decide, and lock objects. An **agent** can inspect, search, create, update, move, group, transform, connect, propose, and request a decision through WebMCP. Neither gets a separate copy of the workspace.
 
 The resulting pattern is collaboration rather than autopilot:
 
@@ -33,6 +33,7 @@ The included workspace is a deliberately messy product-launch plan. It demonstra
 - A proposal to move the date from October 14 to October 21 without silently changing canonical state.
 - Human acceptance that updates the real decision object and records provenance.
 - A locked brand-identity object: agents can read it but cannot move or modify it.
+- A second **Research synthesis** workspace that uses the same tools to organize claims, evidence, contradictions, and open questions.
 
 ## WebMCP implementation
 
@@ -46,12 +47,14 @@ The app registers these browser-native tools when `document.modelContext.registe
 | `create_objects` | Create notes, tasks, decisions, groups, or headings | Changes shared state |
 | `update_objects` | Update permitted, unlocked objects | Changes shared state |
 | `move_objects` | Move permitted, unlocked objects on the canvas | Changes shared state |
+| `group_objects` | Put existing objects into a semantic group | Changes shared state |
+| `transform_objects` | Convert notes, tasks, decisions, groups, or headings | Changes shared state |
 | `connect_objects` | Create semantic relationships | Changes shared state |
 | `propose_changes` | Create a human-reviewable non-canonical proposal | Changes review state only |
 | `request_human_decision` | Surface uncertainty instead of guessing | Changes decision state only |
 | `get_history` | Read attributable activity history | Read-only |
 
-The tool definitions use narrow JSON schemas, mark read-only tools with `readOnlyHint`, return concise structured results, and rely on the same canonical action functions as the human UI. This is important: the WebMCP layer does **not** bypass UI validation or permissions.
+The tool definitions use narrow JSON schemas, mark read-only tools with `readOnlyHint`, return concise structured results, and rely on the same canonical action functions as the human UI. Accepted proposals apply their structured operations only after the human accepts them. This is important: the WebMCP layer does **not** bypass UI validation or permissions.
 
 See [docs/WEBMCP.md](docs/WEBMCP.md) for tool contracts and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the shared-state design.
 
@@ -79,6 +82,7 @@ pnpm run build
 4. Select **View agent access**. Confirm that delete access is off while read, create, modify, reorganize, and connect are explicit capabilities.
 5. Select **Reset demo**, then **Run agent collaboration**. Confirm that the agent status becomes **Waiting on you** and the activity log records the deliberate handoff.
 6. In a WebMCP-enabled browser, ask the agent to call `inspect_workspace`, then `get_objects` for `launch-date` and `brand`. The returned object data exposes the unresolved decision and locked human object. Ask it to move `brand`; the tool rejects the action because it is human-locked.
+7. Open the workspace switcher and select **Research synthesis**. Its claims, evidence, contradictions, and open questions use the same shared object model and WebMCP tools.
 
 ## Design principles
 

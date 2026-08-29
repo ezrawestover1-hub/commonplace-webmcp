@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { workspaceActions } from "./actions";
-import type { Proposal, WorkspaceObject, WorkspaceState } from "./types";
+import type { Proposal, ProposalOperation, WorkspaceObject, WorkspaceState } from "./types";
 
 type Tool = { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, unknown>; execute: (input: any) => Promise<unknown> | unknown };
 type ModelContextDocument = Document & { modelContext?: { registerTool: (tool: Tool, options?: { signal?: AbortSignal }) => Promise<void> } };
@@ -51,6 +51,18 @@ export function registerCommonplaceTools(getState: () => WorkspaceState, setStat
       execute: async (input) => { update((state) => workspaceActions.moveObjects(state, input.moves, "agent")); return { ok: true, moved: input.moves.map((item: { id: string }) => item.id) }; }
     },
     {
+      name: "group_objects",
+      description: "Place existing unlocked objects into an existing semantic group. This updates the shared visual and semantic workspace together.",
+      inputSchema: schema({ groupId: { type: "string", description: "Existing group object ID." }, objectIds: { type: "array", minItems: 1, maxItems: 40, items: { type: "string" }, description: "Objects to place in that group." } }, ["groupId", "objectIds"]),
+      execute: async (input) => { update((state) => workspaceActions.groupObjects(state, input.groupId, input.objectIds, "agent")); return { ok: true, groupId: input.groupId, grouped: input.objectIds }; }
+    },
+    {
+      name: "transform_objects",
+      description: "Change the semantic type of existing unlocked objects, for example turning a note into a task or decision. This updates the same cards the human sees.",
+      inputSchema: schema({ transforms: { type: "array", minItems: 1, maxItems: 20, items: { type: "object", properties: { id: { type: "string" }, type: { type: "string", enum: ["note", "task", "decision", "group", "heading"] } }, required: ["id", "type"], additionalProperties: false } } }, ["transforms"]),
+      execute: async (input) => { update((state) => workspaceActions.transformObjects(state, input.transforms, "agent")); return { ok: true, transformed: input.transforms.map((item: { id: string }) => item.id) }; }
+    },
+    {
       name: "connect_objects",
       description: "Create a named semantic relationship between two existing workspace objects. This changes the shared canvas.",
       inputSchema: schema({ from: { type: "string" }, to: { type: "string" }, relationship: { type: "string", enum: ["depends_on", "supports", "blocks", "related_to"] } }, ["from", "to", "relationship"]),
@@ -59,8 +71,8 @@ export function registerCommonplaceTools(getState: () => WorkspaceState, setStat
     {
       name: "propose_changes",
       description: "Create a reviewable, non-canonical change proposal. The human must accept or reject it in the interface before it becomes a decision.",
-      inputSchema: schema({ id: { type: "string" }, title: { type: "string" }, summary: { type: "string" }, reason: { type: "string" }, changes: { type: "array", items: { type: "string" }, minItems: 1 }, objectIds: { type: "array", items: { type: "string" }, minItems: 1 }, confidence: { type: "number", minimum: 0, maximum: 100 } }, ["id", "title", "summary", "reason", "changes", "objectIds", "confidence"]),
-      execute: async (input) => { const proposal: Proposal = { ...input, status: "pending" }; update((state) => workspaceActions.propose(state, proposal)); return { ok: true, proposalId: input.id, status: "pending", note: "The proposal is visible to the human and is not yet canonical workspace state." }; }
+      inputSchema: schema({ id: { type: "string" }, title: { type: "string" }, summary: { type: "string" }, reason: { type: "string" }, changes: { type: "array", items: { type: "string" }, minItems: 1 }, objectIds: { type: "array", items: { type: "string" }, minItems: 1 }, confidence: { type: "number", minimum: 0, maximum: 100 }, operations: { type: "array", description: "Optional structured operations that are applied only after the human accepts.", items: { type: "object" } } }, ["id", "title", "summary", "reason", "changes", "objectIds", "confidence"]),
+      execute: async (input) => { const proposal: Proposal = { ...input, operations: input.operations as ProposalOperation[] | undefined, status: "pending" }; update((state) => workspaceActions.propose(state, proposal)); return { ok: true, proposalId: input.id, status: "pending", note: "The proposal is visible to the human and is not yet canonical workspace state." }; }
     },
     {
       name: "request_human_decision",

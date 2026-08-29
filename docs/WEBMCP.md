@@ -2,6 +2,8 @@
 
 Commonplace uses the browser-native `document.modelContext.registerTool` API. Registration is feature-detected so the conventional human interface continues to work in unsupported browsers.
 
+The production deployment opts into an origin agent cluster and limits the `tools` Permissions Policy to the same origin, aligning with WebMCP's current document-isolation and permissions requirements.
+
 ## Read-only tools
 
 ### `inspect_workspace`
@@ -34,13 +36,21 @@ Updates permitted, unlocked objects. It accepts only title, content, status, pri
 
 Moves up to 40 permitted, unlocked objects to explicit canvas coordinates. This is a semantic layout action, not GUI automation.
 
+### `group_objects`
+
+Assigns one or more existing unlocked objects to an existing semantic group. The card placement visible to people and the `groupId` readable by agents change through the same action.
+
+### `transform_objects`
+
+Changes an unlocked object's semantic type—for example, a note to a task or decision. The human-visible card, inspector, and agent-readable object remain in sync.
+
 ### `connect_objects`
 
 Creates a `depends_on`, `supports`, `blocks`, or `related_to` relationship after validating both IDs.
 
 ### `propose_changes`
 
-Creates a human-visible proposal with a reason, affected objects, confidence, and a concise list of proposed changes. It does not commit the proposal’s contents to canonical object state.
+Creates a human-visible proposal with a reason, affected objects, confidence, and a concise list of proposed changes. A proposal can include structured update, move, group, and transform operations, but none commit to canonical state until the human accepts.
 
 ### `request_human_decision`
 

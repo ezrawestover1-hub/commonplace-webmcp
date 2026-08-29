@@ -25,4 +25,26 @@ describe("Commonplace shared action layer", () => {
     expect(brand?.x).toBe(80);
     expect(brand?.modifiedBy).toBe("human");
   });
+
+  it("groups unlocked objects through the canonical action layer", () => {
+    const workspace = createAuroraWorkspace();
+    const grouped = workspaceActions.groupObjects(workspace, "marketing", ["fix-signup", "analytics"], "agent");
+    expect(grouped.objects.find((object) => object.id === "fix-signup")?.groupId).toBe("marketing");
+    expect(grouped.activity.at(-1)?.text).toContain("Grouped 2 objects under Marketing");
+  });
+
+  it("refuses an agent transform of a human-locked object", () => {
+    expect(() => workspaceActions.transformObjects(createAuroraWorkspace(), [{ id: "brand", type: "task" }], "agent")).toThrow("locked by a human");
+  });
+
+  it("applies the structured operations that a human accepts", () => {
+    const workspace = createAuroraWorkspace();
+    const proposed = workspaceActions.propose(workspace, {
+      id: "generic-proposal", title: "Convert evidence", summary: "Note → task", reason: "Makes the follow-up actionable.", changes: ["Convert beta feedback"], objectIds: ["beta-feedback"], confidence: 88, status: "pending",
+      operations: [{ kind: "transform", id: "beta-feedback", type: "task" }]
+    });
+    const accepted = workspaceActions.acceptProposal(proposed);
+    expect(accepted.objects.find((object) => object.id === "beta-feedback")?.type).toBe("task");
+    expect(accepted.proposal?.status).toBe("accepted");
+  });
 });

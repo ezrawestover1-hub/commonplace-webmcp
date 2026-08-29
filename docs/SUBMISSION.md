@@ -12,11 +12,11 @@ https://commonplace-webmcp-sigma.vercel.app
 
 Commonplace is a visual workspace designed from the beginning for two first-class participants: humans and AI agents.
 
-Humans work through a calm graphical canvas: they click, drag, write, connect, lock, approve, and rearrange. Agents work through WebMCP: they inspect structured objects, search the workspace, create and update tasks, move objects, create meaningful relationships, propose changes, and request human decisions. Both interact with the same semantic objects and the same shared action layer.
+Humans work through a calm graphical canvas: they click, drag, write, connect, lock, approve, and rearrange. Agents work through WebMCP: they inspect structured objects, search the workspace, create and update tasks, move, group, and transform objects, create meaningful relationships, propose changes, and request human decisions. Both interact with the same semantic objects and the same shared action layer.
 
 ### Why WebMCP is essential
 
-Without WebMCP, an agent would have to infer the canvas from pixels and imitate interface clicks, or the app would need a separate hidden API with a separate representation of the project. Commonplace exposes a small vocabulary of meaningful workspace capabilities instead: `inspect_workspace`, `search_objects`, `get_objects`, `create_objects`, `update_objects`, `move_objects`, `connect_objects`, `propose_changes`, `request_human_decision`, and `get_history`.
+Without WebMCP, an agent would have to infer the canvas from pixels and imitate interface clicks, or the app would need a separate hidden API with a separate representation of the project. Commonplace exposes a small vocabulary of meaningful workspace capabilities instead: `inspect_workspace`, `search_objects`, `get_objects`, `create_objects`, `update_objects`, `move_objects`, `group_objects`, `transform_objects`, `connect_objects`, `propose_changes`, `request_human_decision`, and `get_history`.
 
 The result is more reliable, permissionable, testable, and understandable. The agent can understand that a relationship is a `blocks` dependency instead of guessing what an arrow means; it can understand that an object is locked by a human instead of accidentally moving it; and it can create a reviewable proposal instead of silently changing an unresolved decision.
 
@@ -28,7 +28,7 @@ This is the experience that was difficult before: not a chat transcript that kee
 
 ### How it was implemented
 
-Commonplace is a React + TypeScript + Vite app. Every workspace object carries semantic type, position, relationship data, actor provenance, approval state, lock state, and version. The human interface and every WebMCP tool call invoke the same action layer. Read tools use `readOnlyHint`; mutation tools use narrow JSON schemas and validate permissions, locked state, and object IDs. Proposals are intentionally non-canonical until a human approves them.
+Commonplace is a React + TypeScript + Vite app. Every workspace object carries semantic type, position, relationship data, actor provenance, approval state, lock state, and version. The human interface and every WebMCP tool call invoke the same action layer. Read tools use `readOnlyHint`; mutation tools use narrow JSON schemas and validate permissions, locked state, and object IDs. Proposals are intentionally non-canonical until a human approves them; only then do their structured shared-state operations apply.
 
 ## Demo narration (about 2:05)
 
@@ -62,7 +62,13 @@ Commonplace is a React + TypeScript + Vite app. Every workspace object carries s
 
 **Read aloud:** “Agent access is a set of explicit capabilities, not blanket autonomy. It can inspect, create, modify unlocked objects, reorganize, and connect. Delete is off. A human-locked brand object can be read but cannot be moved by the agent.”
 
-### 1:40–2:05 — Closing
+### 1:40–1:52 — Generality
+
+**On screen:** Select the **Research synthesis** workspace. Show claims, evidence, contradictions, and open questions.
+
+**Read aloud:** “The same shared object model works beyond launch planning. Here, Commonplace lets an agent organize research into claims, evidence, contradictions, and unanswered questions without changing its semantic language.”
+
+### 1:52–2:12 — Closing
 
 **On screen:** Reset demo, run collaboration, activity becomes Waiting on you; return to landing or present mode.
 

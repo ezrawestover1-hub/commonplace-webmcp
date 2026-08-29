@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Bot, Check, ChevronDown, CircleHelp, Clock3, FileText, Grip, Hand, History, LayoutGrid, LockKeyhole, MoreHorizontal, MousePointer2, Network, Play, Plus, Search, Settings, Sparkles, Undo2, X } from "lucide-react";
 import { workspaceActions } from "./actions";
-import { createAuroraWorkspace } from "./data";
+import { createAuroraWorkspace, createResearchWorkspace } from "./data";
 import type { ActivityEvent, WorkspaceObject, WorkspaceState } from "./types";
 import { registerCommonplaceTools } from "./webmcp";
 
 const typeIcon = { note: FileText, task: Check, decision: Sparkles, group: LayoutGrid, heading: FileText };
 const groupIcon = { Product: "✦", Research: "◌", Marketing: "↗", Operations: "◈" } as Record<string, string>;
+type WorkspaceExample = "aurora" | "research";
 
 export function App() {
   const [home, setHome] = useState(true);
+  const [example, setExample] = useState<WorkspaceExample>("aurora");
   const [workspace, setWorkspace] = useState<WorkspaceState>(() => createAuroraWorkspace());
   const [showActivity, setShowActivity] = useState(true);
   const [showPermissions, setShowPermissions] = useState(false);
@@ -24,27 +26,28 @@ export function App() {
   const groups = workspace.objects.filter((object) => object.type === "group");
   const cardById = useMemo(() => new Map(workspace.objects.map((object) => [object.id, object])), [workspace.objects]);
 
-  const runAurora = useCallback(() => {
+  const runAgent = useCallback(() => {
     setIsRunning(true);
     setWorkspace((current) => ({ ...workspaceActions.organizeAurora(current), agentStatus: "working" }));
     window.setTimeout(() => {
-      setWorkspace((current) => ({ ...current, agentStatus: "waiting", activity: [...current.activity, { id: `event-${Date.now()}`, actor: "agent", text: "Waiting for your decision", at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), objectIds: ["launch-date"] }] }));
+      setWorkspace((current) => ({ ...current, agentStatus: "waiting", activity: [...current.activity, { id: `event-${Date.now()}`, actor: "agent", text: current.id === "aurora-launch" ? "Waiting for your decision" : "Waiting for evidence validation", at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), objectIds: [current.selectedId] }] }));
       setIsRunning(false);
     }, 1200);
   }, []);
 
-  const reset = () => setWorkspace(createAuroraWorkspace());
+  const switchExample = (next: WorkspaceExample) => { setExample(next); setWorkspace(next === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); setHome(false); };
+  const reset = () => setWorkspace(example === "aurora" ? createAuroraWorkspace() : createResearchWorkspace());
 
-  if (home) return <Landing onOpen={() => setHome(false)} />;
+  if (home) return <Landing onOpen={switchExample} />;
 
   return <main className={`app-shell ${showPresent ? "presenting" : ""}`}>
     {!showPresent && <Sidebar onReset={reset} />}
     <section className="workspace-shell">
-      {!showPresent && <Header status={workspace.agentStatus} onPresent={() => setShowPresent(true)} onActivity={() => setShowActivity((value) => !value)} />}
+      {!showPresent && <Header name={workspace.name} status={workspace.agentStatus} onPresent={() => setShowPresent(true)} onActivity={() => setShowActivity((value) => !value)} onSwitch={() => switchExample(example === "aurora" ? "research" : "aurora")} />}
       <div className="workspace-body">
         <Canvas workspace={workspace} groups={groups} cardById={cardById} onSelect={(id) => setWorkspace((current) => workspaceActions.select(current, id))} onMove={(id, x, y) => setWorkspace((current) => workspaceActions.moveObjects(current, [{ id, x, y }], "human"))} />
         {showPresent && <button className="exit-present" onClick={() => setShowPresent(false)}><X size={16} /> Exit present mode</button>}
-        {!showPresent && <CanvasControls onRun={runAurora} isRunning={isRunning} />}
+        {!showPresent && <CanvasControls onRun={runAgent} isRunning={isRunning} />}
       </div>
     </section>
     {!showPresent && <Inspector selected={selected} workspace={workspace} onAccept={() => setWorkspace((current) => workspaceActions.acceptProposal(current))} onReject={() => setWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
@@ -52,10 +55,10 @@ export function App() {
   </main>;
 }
 
-function Landing({ onOpen }: { onOpen: () => void }) {
+function Landing({ onOpen }: { onOpen: (example: WorkspaceExample) => void }) {
   return <main className="landing">
-    <header className="landing-nav"><div className="brand"><span className="brand-mark" /><strong>Commonplace</strong></div><nav><button>Workspaces</button><button>Templates</button><button className="landing-open" onClick={onOpen}>Open workspace <ArrowLeftRight size={15} /></button></nav></header>
-    <section className="landing-hero"><div className="landing-copy"><h1>One place for humans and agents to work together.</h1><p>Humans have interfaces. Agents have APIs. Commonplace gives them a shared workspace.</p><div className="hero-actions"><button className="hero-primary" onClick={onOpen}><Play size={15} fill="currentColor" />Open Project Aurora</button><button className="hero-link">How it works <ChevronDown size={16} /></button></div></div><div className="landing-preview" aria-label="Commonplace workspace preview"><div className="preview-bar"><span className="brand-mark" />Project Aurora Launch <span className="preview-status"><i />Agent connected</span></div><div className="preview-canvas"><div className="mini-group product"><b>✦ Product</b><span>Fix signup bug</span><span>Improve onboarding</span></div><div className="mini-group research"><b>◌ Research</b><span>Beta feedback</span><span>Customer interviews</span></div><div className="mini-decision"><Sparkles size={16} /><b>Launch date</b><strong>October 14?</strong><small>Needs decision</small></div><div className="mini-line line-one" /><div className="mini-line line-two" /><div className="mini-agent"><b>Commonplace Agent</b><span>Requested a human decision</span></div></div></div></section>
+    <header className="landing-nav"><div className="brand"><span className="brand-mark" /><strong>Commonplace</strong></div><nav><button>Workspaces</button><button>Templates</button><button className="landing-open" onClick={() => onOpen("aurora")}>Open workspace <ArrowLeftRight size={15} /></button></nav></header>
+    <section className="landing-hero"><div className="landing-copy"><h1>One place for humans and agents to work together.</h1><p>Humans have interfaces. Agents have APIs. Commonplace gives them a shared workspace.</p><div className="hero-actions"><button className="hero-primary" onClick={() => onOpen("aurora")}><Play size={15} fill="currentColor" />Open Project Aurora</button><button className="hero-link" onClick={() => onOpen("research")}>Explore Research Board <ArrowLeftRight size={16} /></button></div></div><div className="landing-preview" aria-label="Commonplace workspace preview"><div className="preview-bar"><span className="brand-mark" />Project Aurora Launch <span className="preview-status"><i />Agent connected</span></div><div className="preview-canvas"><div className="mini-group product"><b>✦ Product</b><span>Fix signup bug</span><span>Improve onboarding</span></div><div className="mini-group research"><b>◌ Research</b><span>Beta feedback</span><span>Customer interviews</span></div><div className="mini-decision"><Sparkles size={16} /><b>Launch date</b><strong>October 14?</strong><small>Needs decision</small></div><div className="mini-line line-one" /><div className="mini-line line-two" /><div className="mini-agent"><b>Commonplace Agent</b><span>Requested a human decision</span></div></div></div></section>
     <section className="shared-statement"><div><span>Human</span><p>Click, drag, write, decide.</p></div><div className="statement-center"><span>Commonplace</span><p>Shared semantic objects.</p></div><div><span>Agent</span><p>Inspect, organize, transform.</p></div></section>
   </main>;
 }
@@ -72,10 +75,10 @@ function Sidebar({ onReset }: { onReset: () => void }) {
   </aside>;
 }
 
-function Header({ status, onPresent, onActivity }: { status: WorkspaceState["agentStatus"]; onPresent: () => void; onActivity: () => void }) {
+function Header({ name, status, onPresent, onActivity, onSwitch }: { name: string; status: WorkspaceState["agentStatus"]; onPresent: () => void; onActivity: () => void; onSwitch: () => void }) {
   const copy = status === "working" ? "Agent working" : status === "waiting" ? "Waiting on you" : "Agent connected";
   return <header className="workspace-header">
-    <div className="workspace-name">Project Aurora Launch <ChevronDown size={16} /></div>
+    <button className="workspace-name" onClick={onSwitch}>{name} <ChevronDown size={16} /></button>
     <div className="header-right">
       <div className="avatars"><span>EZ</span><span>AL</span><span>MK</span></div>
       <div className={`agent-status ${status}`}><i />{copy}</div>
@@ -131,9 +134,9 @@ function CanvasControls({ onRun, isRunning }: { onRun: () => void; isRunning: bo
 function Inspector({ selected, workspace, onAccept, onReject, onPermissions, showActivity }: { selected: WorkspaceObject; workspace: WorkspaceState; onAccept: () => void; onReject: () => void; onPermissions: () => void; showActivity: boolean }) {
   const proposal = workspace.proposal;
   return <aside className="inspector">
-    <div className="inspector-top"><span className="inspector-kind"><Sparkles size={15} /> Decision</span><button><MoreHorizontal size={18} /></button></div>
+    <div className="inspector-top"><span className="inspector-kind"><Sparkles size={15} /> {selected.type}</span><button><MoreHorizontal size={18} /></button></div>
     <div className="inspector-title"><h2>{selected.title}</h2><p>{selected.content}</p><span className={selected.status === "confirmed" ? "state-chip confirmed" : "state-chip"}>{selected.status === "confirmed" ? "Human confirmed" : "Agent proposal"}</span></div>
-    {proposal?.status === "pending" ? <Proposal proposal={proposal} onAccept={onAccept} onReject={onReject} /> : <DecisionDetails selected={selected} onPermissions={onPermissions} />}
+    {proposal?.status === "pending" && selected.type === "decision" ? <Proposal proposal={proposal} onAccept={onAccept} onReject={onReject} /> : <DecisionDetails selected={selected} onPermissions={onPermissions} />}
     {showActivity && <ActivityPanel events={workspace.activity} />}
   </aside>;
 }
@@ -143,7 +146,7 @@ function Proposal({ proposal, onAccept, onReject }: { proposal: NonNullable<Work
 }
 
 function DecisionDetails({ selected, onPermissions }: { selected: WorkspaceObject; onPermissions: () => void }) {
-  return <section className="detail-list"><div><span>Type</span><b>Decision</b></div><div><span>Status</span><b>{selected.status === "confirmed" ? "Confirmed" : "Needs decision"}</b></div><div><span>Confidence</span><b>{selected.confidence ?? 0}%</b></div><div><span>Created by</span><b>Ezra</b></div><div><span>Last modified by</span><b>{selected.modifiedBy === "agent" ? "Commonplace Agent" : "Ezra"}</b></div><button className="permission-link" onClick={onPermissions}><LockKeyhole size={15} /> View agent access</button></section>;
+  return <section className="detail-list"><div><span>Type</span><b>{selected.type}</b></div>{selected.status && <div><span>Status</span><b>{selected.status === "confirmed" ? "Confirmed" : selected.status.replace("_", " ")}</b></div>}{selected.confidence !== undefined && <div><span>Confidence</span><b>{selected.confidence}%</b></div>}{selected.locked && <div><span>Human lock</span><b>Protected</b></div>}<div><span>Created by</span><b>{selected.createdBy === "agent" ? "Commonplace Agent" : "Ezra"}</b></div><div><span>Last modified by</span><b>{selected.modifiedBy === "agent" ? "Commonplace Agent" : "Ezra"}</b></div><button className="permission-link" onClick={onPermissions}><LockKeyhole size={15} /> View agent access</button></section>;
 }
 
 function ActivityPanel({ events }: { events: ActivityEvent[] }) {

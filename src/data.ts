@@ -43,3 +43,37 @@ export const createAuroraWorkspace = (): WorkspaceState => ({
     event("e4", "agent", "Requested a human decision", "9:42 AM", ["launch-date"])
   ]
 });
+
+export const createResearchWorkspace = (): WorkspaceState => ({
+  id: "research-synthesis",
+  name: "Research synthesis",
+  selectedId: "retention-claim",
+  agentStatus: "connected",
+  permissions: { read: true, create: true, modify: true, reorganize: true, connect: true, delete: false },
+  objects: [
+    { id: "claims", type: "group", title: "Claims", x: 86, y: 112, width: 286, createdBy: "agent", modifiedBy: "agent", approval: "approved", version: 1 },
+    { id: "evidence", type: "group", title: "Evidence", x: 610, y: 112, width: 286, createdBy: "agent", modifiedBy: "agent", approval: "approved", version: 1 },
+    { id: "contradictions", type: "group", title: "Contradictions", x: 86, y: 405, width: 286, createdBy: "agent", modifiedBy: "agent", approval: "approved", version: 1 },
+    { id: "questions", type: "group", title: "Open questions", x: 610, y: 405, width: 286, createdBy: "agent", modifiedBy: "agent", approval: "approved", version: 1 },
+    { id: "retention-claim", type: "decision", title: "Onboarding improves retention", content: "Needs evidence", x: 395, y: 334, status: "unresolved", confidence: 58, createdBy: "human", modifiedBy: "agent", approval: "pending", version: 2 },
+    { id: "interview-theme", type: "note", title: "Interview theme", content: "Users want a faster first win", groupId: "claims", x: 104, y: 174, createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
+    { id: "activation-task", type: "task", title: "Test guided activation", groupId: "claims", x: 104, y: 242, priority: "high", createdBy: "agent", modifiedBy: "agent", approval: "not_required", version: 1 },
+    { id: "cohort-data", type: "note", title: "Cohort analysis", content: "Week-one activation correlates with return", groupId: "evidence", x: 568, y: 174, createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
+    { id: "support-log", type: "note", title: "Support log", content: "Setup confusion is the top early complaint", groupId: "evidence", x: 568, y: 242, createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
+    { id: "small-sample", type: "note", title: "Small sample warning", content: "Only 18 interview participants", groupId: "contradictions", x: 104, y: 510, createdBy: "human", modifiedBy: "human", approval: "not_required", version: 1 },
+    { id: "pricing-effect", type: "note", title: "Pricing effect unknown", content: "Retention may be confounded by plan choice", groupId: "contradictions", x: 104, y: 578, createdBy: "human", modifiedBy: "human", approval: "not_required", version: 1 },
+    { id: "experiment", type: "task", title: "Run activation experiment", groupId: "questions", x: 568, y: 510, priority: "high", createdBy: "agent", modifiedBy: "agent", approval: "not_required", version: 1 },
+    { id: "segment", type: "note", title: "Which segment benefits?", groupId: "questions", x: 568, y: 578, createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 }
+  ],
+  connections: [
+    { id: "r1", from: "cohort-data", to: "retention-claim", relationship: "supports", createdBy: "agent" },
+    { id: "r2", from: "small-sample", to: "retention-claim", relationship: "blocks", createdBy: "agent" },
+    { id: "r3", from: "retention-claim", to: "experiment", relationship: "depends_on", createdBy: "agent" }
+  ],
+  activity: [
+    event("r1", "agent", "Read 13 research objects", "10:12 AM"),
+    event("r2", "agent", "Separated claims from evidence", "10:12 AM"),
+    event("r3", "agent", "Flagged two contradictions", "10:13 AM", ["small-sample", "pricing-effect"]),
+    event("r4", "agent", "Requested validation before confirming the claim", "10:13 AM", ["retention-claim"])
+  ]
+});

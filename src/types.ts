@@ -47,7 +47,14 @@ export interface Proposal {
   objectIds: string[];
   confidence: number;
   status: "pending" | "accepted" | "rejected";
+  operations?: ProposalOperation[];
 }
+
+export type ProposalOperation =
+  | { kind: "update"; id: string; patch: Partial<Pick<WorkspaceObject, "title" | "content" | "status" | "priority" | "confidence" | "approval">> }
+  | { kind: "move"; id: string; x: number; y: number }
+  | { kind: "group"; groupId: string; objectIds: string[] }
+  | { kind: "transform"; id: string; type: ObjectType };
 
 export interface WorkspaceState {
   id: string;
