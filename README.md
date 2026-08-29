@@ -92,6 +92,7 @@ pnpm run build
 - **Provenance as product UX:** the canvas and timeline make human versus agent work visible.
 - **Recoverable collaboration:** people can undo the latest shared-state change without resetting the workspace.
 - **No hidden chain-of-thought:** Commonplace displays concise operational explanations and changes, not private reasoning.
+- **A separate play layer:** the draggable play block is intentionally local and non-semantic. It never appears in workspace state, agent history, the inspector, permissions, or WebMCP tools.
 
 ## Project structure
 

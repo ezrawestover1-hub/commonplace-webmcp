@@ -4,6 +4,7 @@ import { workspaceActions } from "./actions";
 import { createAuroraWorkspace, createResearchWorkspace } from "./data";
 import type { ActivityEvent, WorkspaceObject, WorkspaceState } from "./types";
 import { registerCommonplaceTools } from "./webmcp";
+import { PlayBlock } from "./PlayBlock";
 
 const typeIcon = { note: FileText, task: Check, decision: Sparkles, group: LayoutGrid, heading: FileText };
 const groupIcon = { Product: "✦", Research: "◌", Marketing: "↗", Operations: "◈" } as Record<string, string>;
@@ -64,6 +65,7 @@ export function App() {
       {!showPresent && <Header name={workspace.name} status={workspace.agentStatus} onPresent={() => setShowPresent(true)} onActivity={() => setShowActivity((value) => !value)} onSwitch={() => switchExample(example === "aurora" ? "research" : "aurora")} />}
       <div className="workspace-body">
         <Canvas workspace={workspace} groups={groups} cardById={cardById} onSelect={(id) => applyWorkspace((current) => workspaceActions.select(current, id))} onMove={(id, x, y) => applyWorkspace((current) => workspaceActions.moveObjects(current, [{ id, x, y }], "human"))} />
+        <PlayBlock />
         {showPresent && <button className="exit-present" onClick={() => setShowPresent(false)}><X size={16} /> Exit present mode</button>}
         {!showPresent && <CanvasControls onRun={runAgent} isRunning={isRunning} />}
       </div>
