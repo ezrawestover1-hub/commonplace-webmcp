@@ -77,8 +77,8 @@ Commonplace is a React + TypeScript + Vite app. Every workspace object carries s
 ## Release checklist
 
 - [x] Add the deployed HTTPS URL to Devpost.
-- [ ] Add the public GitHub/GitLab/Bitbucket repository URL to Devpost.
-- [ ] Confirm the MIT license badge is visible on the public repository page.
+- [x] Add the public GitHub/GitLab/Bitbucket repository URL to Devpost.
+- [x] Confirm the MIT license badge is visible on the public repository page.
 - [ ] Upload the completed narrated demo as a public YouTube video, then add its URL.
 - [ ] Test the deployed URL in ChatGPT’s in-app browser or Chrome with WebMCP testing enabled.
 - [ ] Save the Devpost submission before September 3, 2026 at 1:00 PM Pacific.

@@ -90,6 +90,7 @@ pnpm run build
 - **Capabilities, not blanket access:** agent powers are explicit and enforced in the action layer.
 - **Proposals before authority:** ambiguous or consequential changes are shown for human review.
 - **Provenance as product UX:** the canvas and timeline make human versus agent work visible.
+- **Recoverable collaboration:** people can undo the latest shared-state change without resetting the workspace.
 - **No hidden chain-of-thought:** Commonplace displays concise operational explanations and changes, not private reasoning.
 
 ## Project structure
