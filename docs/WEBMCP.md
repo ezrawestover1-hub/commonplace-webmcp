@@ -1,0 +1,71 @@
+# Commonplace WebMCP tool contracts
+
+Commonplace uses the browser-native `document.modelContext.registerTool` API. Registration is feature-detected so the conventional human interface continues to work in unsupported browsers.
+
+## Read-only tools
+
+### `inspect_workspace`
+
+Returns the workspace name, object count, selected object, group names, permission map, and agent status. Use it first to learn the semantic environment.
+
+### `search_objects`
+
+Accepts optional `query`, `type`, `groupId`, and `status` filters. Returns matching structured objects, capped at 25.
+
+### `get_objects`
+
+Accepts optional object IDs and returns detailed object records plus relationships touching those objects. It is the safe way to inspect locks, ownership, confidence, approvals, and dependencies.
+
+### `get_history`
+
+Returns attributable activity events. The agent should use this after a human changes the canvas instead of assuming that a prior plan is still authoritative.
+
+## Mutation tools
+
+### `create_objects`
+
+Creates up to 20 semantic notes, tasks, decisions, groups, or headings. The agent needs create permission.
+
+### `update_objects`
+
+Updates permitted, unlocked objects. It accepts only title, content, status, priority, and confidence fields—never arbitrary property injection.
+
+### `move_objects`
+
+Moves up to 40 permitted, unlocked objects to explicit canvas coordinates. This is a semantic layout action, not GUI automation.
+
+### `connect_objects`
+
+Creates a `depends_on`, `supports`, `blocks`, or `related_to` relationship after validating both IDs.
+
+### `propose_changes`
+
+Creates a human-visible proposal with a reason, affected objects, confidence, and a concise list of proposed changes. It does not commit the proposal’s contents to canonical object state.
+
+### `request_human_decision`
+
+Creates or updates a decision with an explicit prompt and options. This lets the agent surface uncertainty rather than fabricate a resolution.
+
+## Example agent path
+
+```text
+inspect_workspace()
+  → identify Project Aurora and the current selection
+
+search_objects({ query: "launch", type: "decision" })
+  → find launch-date
+
+get_objects({ objectIds: ["launch-date", "beta-feedback"] })
+  → identify a tentative October 14 date and beta-feedback dependency
+
+propose_changes({ ... October 14 → October 21 ... })
+  → shared workspace displays proposal; canonical date is unchanged
+
+request_human_decision({ objectId: "launch-date", ... })
+  → agent waits for person’s judgment
+
+get_history({ objectIds: ["launch-date"] })
+  → agent learns whether the human accepted, rejected, or altered the plan
+```
+
+This loop is the point of the app: human and agent continuously work on one persistent artifact.
