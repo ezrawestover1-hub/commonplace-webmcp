@@ -46,7 +46,7 @@ export interface Proposal {
   changes: string[];
   objectIds: string[];
   confidence: number;
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "stale" | "accepted" | "rejected";
   operations?: ProposalOperation[];
 }
 

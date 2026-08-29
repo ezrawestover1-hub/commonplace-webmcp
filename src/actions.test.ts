@@ -57,6 +57,23 @@ describe("Commonplace shared action layer", () => {
     expect(accepted.proposal?.status).toBe("accepted");
   });
 
+  it("invalidates a pending proposal when a person changes its evidence", () => {
+    const workspace = createAuroraWorkspace();
+    const edited = workspaceActions.updateObject(workspace, "beta-feedback", { content: "68 responses · 9 critical onboarding regressions" }, "human");
+    const stale = workspaceActions.markProposalStale(edited, "beta-feedback");
+    expect(stale.proposal?.status).toBe("stale");
+    expect(workspaceActions.acceptProposal(stale)).toBe(stale);
+    expect(stale.activity.at(-1)?.text).toContain("proposal is stale");
+  });
+
+  it("creates a new reviewable proposal only after the evidence re-check path", () => {
+    const stale = workspaceActions.markProposalStale(createAuroraWorkspace(), "beta-feedback");
+    const rechecked = workspaceActions.proposeEvidenceRecheck(stale);
+    expect(rechecked.proposal?.status).toBe("pending");
+    expect(rechecked.proposal?.summary).toContain("October 28");
+    expect(workspaceActions.acceptProposal(rechecked).objects.find((object) => object.id === "launch-date")?.content).toBe("October 28");
+  });
+
   it("enforces connection permission for an agent while allowing a human relationship", () => {
     const workspace = createAuroraWorkspace();
     const noConnection = { ...workspace, permissions: { ...workspace.permissions, connect: false } };

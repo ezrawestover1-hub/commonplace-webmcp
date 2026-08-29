@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
-import { AlertTriangle, ArrowLeftRight, Bot, Check, ChevronDown, ChevronRight, CircleCheckBig, Clock3, Eye, FileText, Hand, History, LayoutGrid, LockKeyhole, MousePointer2, Network, Pencil, Play, Plus, Radio, ScanSearch, Search, Sparkles, Undo2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Bot, Check, ChevronDown, ChevronRight, CircleCheckBig, Clock3, Eye, FileText, Hand, History, LayoutGrid, LockKeyhole, MousePointer2, Network, Pencil, Play, Plus, Radio, RefreshCw, ScanSearch, Search, Sparkles, Undo2, X } from "lucide-react";
 import { workspaceActions } from "./actions";
 import { createAuroraWorkspace, createResearchWorkspace } from "./data";
 import type { ActivityEvent, WorkspaceObject, WorkspaceState } from "./types";
@@ -21,7 +21,7 @@ export function App() {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [filter, setFilter] = useState("");
-  const [webmcp, setWebmcp] = useState({ supported: false, toolCount: 0 });
+  const [webmcp, setWebmcp] = useState<{ state: "unsupported" | "registering" | "ready" | "failed"; toolCount: number; failedTools: string[] }>({ state: "unsupported", toolCount: 0, failedTools: [] });
   const [trace, setTrace] = useState<ToolTraceEvent[]>([]);
   const [focusIds, setFocusIds] = useState<string[]>([]);
   const [guideStep, setGuideStep] = useState(0);
@@ -62,8 +62,10 @@ export function App() {
 
   useEffect(() => {
     const registration = registerCommonplaceTools(() => latest.current, applyWorkspace, appendTrace);
-    setWebmcp({ supported: registration.supported, toolCount: registration.toolCount });
-    return registration.cleanup;
+    let active = true;
+    setWebmcp(registration.supported ? { state: "registering", toolCount: registration.toolCount, failedTools: [] } : { state: "unsupported", toolCount: 0, failedTools: [] });
+    registration.ready.then((result) => { if (active) setWebmcp({ state: result.state, toolCount: result.registered, failedTools: result.failedTools }); });
+    return () => { active = false; registration.cleanup(); };
   }, [appendTrace, applyWorkspace]);
 
   const selected = workspace.objects.find((object) => object.id === workspace.selectedId) ?? workspace.objects[0];
@@ -78,6 +80,32 @@ export function App() {
       setIsRunning(false);
     }, 1200);
   }, [applyWorkspace]);
+
+  const updateHumanObject = useCallback((id: string, patch: Partial<WorkspaceObject>) => {
+    applyWorkspace((current) => {
+      const updated = workspaceActions.updateObject(current, id, patch, "human");
+      return id === "beta-feedback" ? workspaceActions.markProposalStale(updated, id) : updated;
+    });
+    if (id === "beta-feedback") {
+      appendTrace({ id: `human-evidence-${Date.now()}`, tool: "human_updated_evidence", summary: "Human changed Beta feedback. The earlier proposal is no longer safe to accept.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success" });
+      setFocusIds(["beta-feedback", "launch-date"]); setShowTrace(true);
+    }
+  }, [appendTrace, applyWorkspace]);
+
+  const addCriticalEvidence = useCallback(() => {
+    applyWorkspace((current) => {
+      const updated = workspaceActions.updateObject(current, "beta-feedback", { content: "68 responses · 9 critical onboarding regressions", priority: "high" }, "human");
+      return { ...workspaceActions.markProposalStale(updated, "beta-feedback"), selectedId: "launch-date" };
+    });
+    appendTrace({ id: `human-evidence-${Date.now()}`, tool: "human_updated_evidence", summary: "Human added critical beta evidence. The earlier proposal is now stale and cannot be accepted.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success" });
+    setFocusIds(["beta-feedback", "launch-date"]); setShowTrace(false);
+  }, [appendTrace, applyWorkspace]);
+  const previewEvidenceRecheck = useCallback(() => {
+    setIsRunning(true); setShowTrace(true); setFocusIds(["beta-feedback", "launch-date", "fix-signup"]);
+    appendTrace({ id: `history-${Date.now()}`, tool: "get_history", summary: "Local preview: re-read the human evidence change before making another recommendation.", objectIds: ["beta-feedback"], at: "now", outcome: "success" });
+    window.setTimeout(() => appendTrace({ id: `objects-${Date.now()}`, tool: "get_objects", summary: "Local preview: read the dependent launch decision and onboarding task.", objectIds: ["beta-feedback", "launch-date", "fix-signup"], at: "now", outcome: "success" }), 450);
+    window.setTimeout(() => { applyWorkspace((current) => workspaceActions.proposeEvidenceRecheck(current)); appendTrace({ id: `recheck-${Date.now()}`, tool: "propose_changes", summary: "Local preview: proposed October 28 only after re-reading the edited human evidence.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success" }); setIsRunning(false); setShowTrace(false); }, 900);
+  }, [appendTrace, applyWorkspace]);
 
   const runGuidedCollaboration = useCallback(() => {
     window.clearTimeout((window as Window & { commonplaceGuideTimer?: number }).commonplaceGuideTimer);
@@ -110,10 +138,10 @@ export function App() {
         <Canvas workspace={workspace} groups={groups} cardById={cardById} focusIds={focusIds} filter={filter} onSelect={(id) => { setShowTrace(false); applyWorkspace((current) => workspaceActions.select(current, id)); }} onMove={(id, x, y, ungroup) => applyWorkspace((current) => workspaceActions.moveObjects(current, [{ id, x, y }], "human", ungroup))} />
         <PlayBlock />
         {showPresent && <button className="exit-present" onClick={() => setShowPresent(false)}><X size={16} /> Exit present mode</button>}
-        {!showPresent && <CanvasControls onRun={runAgent} isRunning={isRunning} onCreate={createObject} onConnect={connectSelected} />}
+        {!showPresent && <CanvasControls onRun={workspace.proposal?.status === "stale" ? previewEvidenceRecheck : runAgent} isRunning={isRunning} onCreate={createObject} onConnect={connectSelected} stale={workspace.proposal?.status === "stale"} />}
       </div>
     </section>
-    {!showPresent && <Inspector selected={selected} workspace={workspace} trace={trace} showTrace={showTrace} focusIds={focusIds} onTraceClick={(event) => { setFocusIds(event.objectIds ?? []); event.objectIds?.[0] && applyWorkspace((current) => workspaceActions.select(current, event.objectIds![0])); }} onShowObject={() => setShowTrace(false)} onShowTrace={() => setShowTrace(true)} onUpdate={(id, patch) => applyWorkspace((current) => workspaceActions.updateObject(current, id, patch, "human"))} onToggleLock={(id, locked) => applyWorkspace((current) => workspaceActions.updateObject(current, id, { locked }, "human"))} onVerifyLock={(object) => { try { workspaceActions.updateObject(latest.current, object.id, { content: "Agent attempted an edit" }, "agent"); } catch (error) { appendTrace({ id: `blocked-${Date.now()}`, tool: "update_objects", summary: error instanceof Error ? error.message : "The human lock blocked the agent.", objectIds: [object.id], at: "now", outcome: "error" }); setShowTrace(true); } }} onAccept={() => { applyWorkspace((current) => workspaceActions.acceptProposal(current)); appendTrace({ id: `human-${Date.now()}`, tool: "human_accepted_proposal", summary: "Human accepted the proposed October 21 decision. The shared canonical object updated.", objectIds: ["launch-date"], at: "now", outcome: "success" }); setGuideStep(3); setShowTrace(true); setFocusIds(["launch-date"]); }} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
+    {!showPresent && <Inspector selected={selected} workspace={workspace} trace={trace} showTrace={showTrace} focusIds={focusIds} onTraceClick={(event) => { setFocusIds(event.objectIds ?? []); event.objectIds?.[0] && applyWorkspace((current) => workspaceActions.select(current, event.objectIds![0])); }} onShowObject={() => setShowTrace(false)} onShowTrace={() => setShowTrace(true)} onUpdate={updateHumanObject} onAddEvidence={addCriticalEvidence} onPreviewRecheck={previewEvidenceRecheck} onToggleLock={(id, locked) => updateHumanObject(id, { locked })} onVerifyLock={(object) => { try { workspaceActions.updateObject(latest.current, object.id, { content: "Agent attempted an edit" }, "agent"); } catch (error) { appendTrace({ id: `blocked-${Date.now()}`, tool: "update_objects", summary: error instanceof Error ? error.message : "The human lock blocked the agent.", objectIds: [object.id], at: "now", outcome: "error" }); setShowTrace(true); } }} onAccept={() => { applyWorkspace((current) => workspaceActions.acceptProposal(current)); appendTrace({ id: `human-${Date.now()}`, tool: "human_accepted_proposal", summary: `Human accepted ${latest.current.proposal?.summary ?? "the proposal"}. The shared canonical object updated.`, objectIds: ["launch-date"], at: "now", outcome: "success" }); setGuideStep(3); setShowTrace(true); setFocusIds(["launch-date"]); }} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
     {showPermissions && <Permissions workspace={workspace} onToggle={(key) => applyWorkspace((current) => ({ ...current, permissions: { ...current.permissions, [key]: !current.permissions[key] } }))} onClose={() => setShowPermissions(false)} />}
   </main>;
 }
@@ -138,10 +166,11 @@ function Sidebar({ onReset, onUndo, onRedo, canUndo, canRedo, filter, onFilter, 
   </aside>;
 }
 
-function Header({ name, webmcp, onStart, onPresent, onSwitch }: { name: string; webmcp: { supported: boolean; toolCount: number }; onStart: () => void; onPresent: () => void; onSwitch: () => void }) {
+function Header({ name, webmcp, onStart, onPresent, onSwitch }: { name: string; webmcp: { state: "unsupported" | "registering" | "ready" | "failed"; toolCount: number; failedTools: string[] }; onStart: () => void; onPresent: () => void; onSwitch: () => void }) {
+  const copy = webmcp.state === "ready" ? [`WebMCP live · ${webmcp.toolCount} tools registered`, "Native browser tools are ready for an agent."] : webmcp.state === "registering" ? ["WebMCP registering tools…", "Waiting for browser confirmation."] : webmcp.state === "failed" ? [`WebMCP setup incomplete · ${webmcp.toolCount} ready`, `${webmcp.failedTools.join(", ")} could not register.`] : ["WebMCP unavailable in this browser", "Use ChatGPT’s browser or Chrome with WebMCP testing."];
   return <header className="workspace-header">
     <button className="workspace-name" onClick={onSwitch}>{name} <ChevronDown size={16} /></button>
-    <div className={`webmcp-state ${webmcp.supported ? "live" : "unavailable"}`}><Radio size={15} /><span><b>{webmcp.supported ? `WebMCP live · ${webmcp.toolCount} tools registered` : "WebMCP unavailable in this browser"}</b><small>{webmcp.supported ? "This host can call Commonplace tools." : "Use ChatGPT’s browser or Chrome with WebMCP testing."}</small></span></div>
+    <div className={`webmcp-state ${webmcp.state}`}><Radio size={15} /><span><b>{copy[0]}</b><small>{copy[1]}</small></span></div>
     <div className="header-right">
       <button className="v2-start" onClick={onStart}><Sparkles size={15} />Try the collaboration</button>
       <button className="present-button" onClick={onPresent}><Play size={15} fill="currentColor" />Present</button>
@@ -187,7 +216,8 @@ function CanvasCard({ object, selected, focused, onSelect, onMove, withinGroup =
   const onMouseMove = (event: React.MouseEvent<HTMLButtonElement>) => { if (drag.current.source === "mouse") trackDrag(event.clientX, event.clientY); };
   const onMouseUp = (event: React.MouseEvent<HTMLButtonElement>) => { if (drag.current.source === "mouse") finishDrag(event.clientX, event.clientY); };
   const decision = object.type === "decision";
-  return <button className={`canvas-card ${decision ? "decision-card" : ""} ${selected ? "selected" : ""} ${focused ? "focused" : ""} ${object.locked ? "locked" : ""}`} style={withinGroup ? undefined : { left: `${(object.x / 920) * 100}%`, top: `${(object.y / 780) * 100}%` }} onClick={() => onSelect(object.id)} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
+  const evidenceChanged = object.id === "beta-feedback" && object.modifiedBy === "human";
+  return <button className={`canvas-card ${decision ? "decision-card" : ""} ${selected ? "selected" : ""} ${focused ? "focused" : ""} ${object.locked ? "locked" : ""} ${evidenceChanged ? "human-edited" : ""}`} style={withinGroup ? undefined : { left: `${(object.x / 920) * 100}%`, top: `${(object.y / 780) * 100}%` }} onClick={() => onSelect(object.id)} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}>
     <span className="card-icon"><Icon size={16} strokeWidth={1.7} /></span>
     <span className="card-copy"><strong>{object.title}</strong>{object.content && <small>{object.content}</small>}{object.priority && <small className="card-meta">{object.priority === "high" ? "P1" : "P2"} · {object.modifiedBy === "agent" ? "Agent updated" : "Human created"}</small>}</span>
     {object.locked && <LockKeyhole className="card-lock" size={15} />}
@@ -195,11 +225,11 @@ function CanvasCard({ object, selected, focused, onSelect, onMove, withinGroup =
   </button>;
 }
 
-function CanvasControls({ onRun, isRunning, onCreate, onConnect }: { onRun: () => void; isRunning: boolean; onCreate: (type: WorkspaceObject["type"]) => void; onConnect: () => void }) {
-  return <><div className="canvas-tools"><button title="Create a shared note" onClick={() => onCreate("note")}><Plus size={16} /> Note</button><button title="Create a shared task" onClick={() => onCreate("task")}><Check size={16} /> Task</button><button title="Create a human decision" onClick={() => onCreate("decision")}><Sparkles size={16} /> Decision</button><button title="Create a workspace group" onClick={() => onCreate("group")}><LayoutGrid size={16} /> Group</button><button title="Link selected object to the launch decision" onClick={onConnect}><Network size={16} /> Link</button></div><button className="agent-demo-trigger" onClick={onRun} disabled={isRunning}><Bot size={17} />{isRunning ? "Agent is organizing…" : "Preview safe agent action"}</button></>;
+function CanvasControls({ onRun, isRunning, onCreate, onConnect, stale }: { onRun: () => void; isRunning: boolean; onCreate: (type: WorkspaceObject["type"]) => void; onConnect: () => void; stale: boolean }) {
+  return <><div className="canvas-tools"><button title="Create a shared note" onClick={() => onCreate("note")}><Plus size={16} /> Note</button><button title="Create a shared task" onClick={() => onCreate("task")}><Check size={16} /> Task</button><button title="Create a human decision" onClick={() => onCreate("decision")}><Sparkles size={16} /> Decision</button><button title="Create a workspace group" onClick={() => onCreate("group")}><LayoutGrid size={16} /> Group</button><button title="Link selected object to the launch decision" onClick={onConnect}><Network size={16} /> Link</button></div><button className={`agent-demo-trigger ${stale ? "recheck" : ""}`} onClick={onRun} disabled={isRunning}>{stale ? <RefreshCw size={17} /> : <Bot size={17} />}{isRunning ? "Re-reading shared evidence…" : stale ? "Preview local re-check" : "Preview safe agent action"}</button></>;
 }
 
-function Inspector({ selected, workspace, trace, showTrace, onTraceClick, onShowObject, onShowTrace, onUpdate, onToggleLock, onVerifyLock, onAccept, onReject, onPermissions, showActivity }: { selected: WorkspaceObject; workspace: WorkspaceState; trace: ToolTraceEvent[]; showTrace: boolean; focusIds: string[]; onTraceClick: (event: ToolTraceEvent) => void; onShowObject: () => void; onShowTrace: () => void; onUpdate: (id: string, patch: Partial<WorkspaceObject>) => void; onToggleLock: (id: string, locked: boolean) => void; onVerifyLock: (object: WorkspaceObject) => void; onAccept: () => void; onReject: () => void; onPermissions: () => void; showActivity: boolean }) {
+function Inspector({ selected, workspace, trace, showTrace, onTraceClick, onShowObject, onShowTrace, onUpdate, onAddEvidence, onPreviewRecheck, onToggleLock, onVerifyLock, onAccept, onReject, onPermissions, showActivity }: { selected: WorkspaceObject; workspace: WorkspaceState; trace: ToolTraceEvent[]; showTrace: boolean; focusIds: string[]; onTraceClick: (event: ToolTraceEvent) => void; onShowObject: () => void; onShowTrace: () => void; onUpdate: (id: string, patch: Partial<WorkspaceObject>) => void; onAddEvidence: () => void; onPreviewRecheck: () => void; onToggleLock: (id: string, locked: boolean) => void; onVerifyLock: (object: WorkspaceObject) => void; onAccept: () => void; onReject: () => void; onPermissions: () => void; showActivity: boolean }) {
   const proposal = workspace.proposal;
   return <aside className="inspector v2-inspector">
     <div className="inspector-tabs"><button className={!showTrace ? "active" : ""} onClick={onShowObject}><Pencil size={14} />Object</button><button className={showTrace ? "active" : ""} onClick={onShowTrace}><ScanSearch size={14} />Agent trace</button></div>
@@ -207,7 +237,8 @@ function Inspector({ selected, workspace, trace, showTrace, onTraceClick, onShow
     <div className="inspector-top"><span className="inspector-kind"><Sparkles size={15} /> {selected.type}</span></div>
     <div className="inspector-title"><h2>{selected.title}</h2><p>{selected.content}</p><span className={selected.status === "confirmed" ? "state-chip confirmed" : "state-chip"}>{selected.status === "confirmed" ? "Human confirmed" : "Agent proposal"}</span></div>
     <InlineEditor selected={selected} onUpdate={onUpdate} onToggleLock={onToggleLock} />
-    {proposal?.status === "pending" && selected.type === "decision" ? <Proposal proposal={proposal} onAccept={onAccept} onReject={onReject} /> : <DecisionDetails selected={selected} onPermissions={onPermissions} onVerifyLock={onVerifyLock} />}
+    {selected.id === "beta-feedback" && <button className="evidence-action" onClick={onAddEvidence}><Hand size={14} /> Add critical beta evidence</button>}
+    {proposal?.status === "pending" && selected.type === "decision" ? <Proposal proposal={proposal} onAccept={onAccept} onReject={onReject} /> : proposal?.status === "stale" && selected.type === "decision" ? <StaleProposal onPreview={onPreviewRecheck} /> : <DecisionDetails selected={selected} onPermissions={onPermissions} onVerifyLock={onVerifyLock} />}
     {showActivity && <ActivityPanel events={workspace.activity} />}
     </>}
   </aside>;
@@ -231,6 +262,10 @@ function TracePanel({ trace, onSelect }: { trace: ToolTraceEvent[]; onSelect: (e
 
 function Proposal({ proposal, onAccept, onReject }: { proposal: NonNullable<WorkspaceState["proposal"]>; onAccept: () => void; onReject: () => void }) {
   return <section className="proposal"><div className="proposal-heading"><span>Agent proposal</span><b>{proposal.confidence}% confidence</b></div><h3>{proposal.summary}</h3><p>{proposal.reason}</p><div className="proposal-impact">{proposal.changes.map((change) => <div key={change}><ArrowLeftRight size={14} />{change}</div>)}</div><button className="accept-button" onClick={onAccept}><Check size={16} />Accept all</button><button className="outline-action reject" onClick={onReject}><X size={16} />Reject</button></section>;
+}
+
+function StaleProposal({ onPreview }: { onPreview: () => void }) {
+  return <section className="stale-proposal"><span><AlertTriangle size={15} /> Proposal stale after a human edit</span><h3>Agent must re-read the evidence.</h3><p>Acceptance is deliberately paused. A native agent should call <b>get_history</b> and <b>get_objects</b> before sending a replacement proposal.</p><button className="recheck-button" onClick={onPreview}><RefreshCw size={15} /> Preview local re-check path</button></section>;
 }
 
 function DecisionDetails({ selected, onPermissions, onVerifyLock }: { selected: WorkspaceObject; onPermissions: () => void; onVerifyLock: (object: WorkspaceObject) => void }) {

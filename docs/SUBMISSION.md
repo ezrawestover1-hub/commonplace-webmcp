@@ -20,6 +20,8 @@ Without WebMCP, an agent would have to infer the canvas from pixels and imitate 
 
 The result is more reliable, permissionable, testable, and understandable. The agent can understand that a relationship is a `blocks` dependency instead of guessing what an arrow means; it can understand that an object is locked by a human instead of accidentally moving it; and it can create a reviewable proposal instead of silently changing an unresolved decision.
 
+Commonplace also treats new human evidence as a real collaboration event. If a person changes Beta feedback after an agent proposes a date, the proposal becomes stale and cannot be accepted. The agent must re-read the shared history and affected objects before it can send a replacement proposal. This is the central promise of the product: the human and agent do not maintain separate, drifting versions of the plan.
+
 ### What people and agents can do together
 
 The Project Aurora demo begins with a scattered launch plan. The agent organizes the same workspace into Product, Research, Marketing, and Operations, creates visible dependencies, and detects that the tentative October 14 launch conflicts with beta feedback. Rather than guessing, it proposes October 21 and waits. The person can accept, reject, or alter the proposal directly on the canvas. When the person accepts, the canonical decision changes, the activity timeline records human approval, and the agent can continue from that shared current state.
@@ -30,7 +32,7 @@ This is the experience that was difficult before: not a chat transcript that kee
 
 Commonplace is a React + TypeScript + Vite app. Every workspace object carries semantic type, position, relationship data, actor provenance, approval state, lock state, and version. The human interface and every WebMCP tool call invoke the same action layer. Read tools use `readOnlyHint`; mutation tools use narrow JSON schemas and validate permissions, locked state, and object IDs. Proposals are intentionally non-canonical until a human approves them; only then do their structured shared-state operations apply.
 
-## Demo narration (about 2:05)
+## Demo narration (about 2:32)
 
 ### 0:00–0:13 — Thesis
 
@@ -56,19 +58,25 @@ Commonplace is a React + TypeScript + Vite app. Every workspace object carries s
 
 **Read aloud:** “The person stays in control. Accepting the proposal moves the date to October 21 in the shared canonical state and records that a human approved it. The agent can now continue from this real decision, not an outdated chat response.”
 
-### 1:20–1:40 — Permission boundary
+### 1:20–1:42 — Evidence changes the agent’s next move
+
+**On screen:** Select Beta feedback; click **Add critical beta evidence**; show the stale proposal message; click **Preview local re-check path** for the browser-independent demo, then point to `get_history`, `get_objects`, and the replacement proposal in Agent Trace.
+
+**Read aloud:** “Now the person adds nine critical onboarding regressions. Commonplace immediately makes the old proposal stale, so it cannot be accepted against outdated evidence. A WebMCP agent must re-read the human change and the affected objects before proposing again. This is not a chat transcript—it is a shared artifact with freshness rules.”
+
+### 1:42–2:02 — Permission boundary
 
 **On screen:** Agent access modal; point out delete is off.
 
 **Read aloud:** “Agent access is a set of explicit capabilities, not blanket autonomy. It can inspect, create, modify unlocked objects, reorganize, and connect. Delete is off. A human-locked brand object can be read but cannot be moved by the agent.”
 
-### 1:40–1:52 — Generality
+### 2:02–2:14 — Generality
 
 **On screen:** Select the **Research synthesis** workspace. Show claims, evidence, contradictions, and open questions.
 
 **Read aloud:** “The same shared object model works beyond launch planning. Here, Commonplace lets an agent organize research into claims, evidence, contradictions, and unanswered questions without changing its semantic language.”
 
-### 1:52–2:12 — Closing
+### 2:14–2:32 — Closing
 
 **On screen:** Reset demo, run collaboration, activity becomes Waiting on you; return to landing or present mode.
 

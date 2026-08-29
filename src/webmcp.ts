@@ -2,17 +2,17 @@ import type { Dispatch, SetStateAction } from "react";
 import { workspaceActions } from "./actions";
 import type { Proposal, ProposalOperation, WorkspaceObject, WorkspaceState } from "./types";
 
-type Tool = { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, unknown>; execute: (input: any) => Promise<unknown> | unknown };
+type Tool = { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, unknown>; execute: (input: any, options?: { signal?: AbortSignal }) => Promise<unknown> | unknown };
 type ModelContextDocument = Document & { modelContext?: { registerTool: (tool: Tool, options?: { signal?: AbortSignal }) => Promise<void> } };
 export type ToolTraceEvent = { id: string; tool: string; summary: string; objectIds?: string[]; at: string; outcome: "success" | "error" };
-export type WebMCPRegistration = { supported: boolean; toolCount: number; cleanup: () => void };
+export type WebMCPRegistration = { supported: boolean; toolCount: number; cleanup: () => void; ready: Promise<{ state: "ready" | "failed" | "unsupported"; registered: number; failedTools: string[] }> };
 
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
 const ids = (state: WorkspaceState, objectIds?: string[]) => objectIds?.length ? state.objects.filter((object) => objectIds.includes(object.id)) : state.objects;
 
 export function registerCommonplaceTools(getState: () => WorkspaceState, setState: Dispatch<SetStateAction<WorkspaceState>>, onTrace?: (event: ToolTraceEvent) => void): WebMCPRegistration {
   const context = (document as ModelContextDocument).modelContext;
-  if (typeof context?.registerTool !== "function") return { supported: false, toolCount: 0, cleanup: () => undefined };
+  if (typeof context?.registerTool !== "function") return { supported: false, toolCount: 0, cleanup: () => undefined, ready: Promise.resolve({ state: "unsupported", registered: 0, failedTools: [] }) };
   const controller = new AbortController();
   const update = (work: (current: WorkspaceState) => WorkspaceState) => setState((current) => work(current));
   const tools: Tool[] = [
@@ -91,9 +91,10 @@ export function registerCommonplaceTools(getState: () => WorkspaceState, setStat
   ];
   const tracedTools = tools.map((tool) => ({
     ...tool,
-    execute: async (input: unknown) => {
+    execute: async (input: unknown, options?: { signal?: AbortSignal }) => {
       try {
-        const result = await tool.execute(input);
+        if (options?.signal?.aborted) throw new DOMException("WebMCP tool execution was cancelled.", "AbortError");
+        const result = await tool.execute(input, options);
         const objectIds = Array.isArray((input as { objectIds?: unknown })?.objectIds) ? (input as { objectIds: string[] }).objectIds : undefined;
         onTrace?.({ id: `tool-${Date.now()}-${tool.name}`, tool: tool.name, summary: tool.description, objectIds, at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }), outcome: "success" });
         return result;
@@ -103,6 +104,9 @@ export function registerCommonplaceTools(getState: () => WorkspaceState, setStat
       }
     }
   }));
-  Promise.all(tracedTools.map((tool) => context.registerTool(tool, { signal: controller.signal }).catch((error: unknown) => console.warn(`Could not register ${tool.name}`, error))));
-  return { supported: true, toolCount: tools.length, cleanup: () => controller.abort() };
+  const ready = Promise.allSettled(tracedTools.map((tool) => context.registerTool(tool, { signal: controller.signal }))).then((results) => {
+    const failedTools = results.flatMap((result, index) => result.status === "rejected" ? [tracedTools[index].name] : []);
+    return failedTools.length ? { state: "failed" as const, registered: tools.length - failedTools.length, failedTools } : { state: "ready" as const, registered: tools.length, failedTools };
+  });
+  return { supported: true, toolCount: tools.length, cleanup: () => controller.abort(), ready };
 }

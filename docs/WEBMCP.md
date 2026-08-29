@@ -2,6 +2,8 @@
 
 Commonplace uses the browser-native `document.modelContext.registerTool` API. Registration is feature-detected so the conventional human interface continues to work in unsupported browsers.
 
+The status indicator is intentionally conservative: it shows **WebMCP live** only after every registration promise resolves. If the browser does not expose WebMCP, or a tool fails to register, the interface says so rather than implying an agent connection exists.
+
 The production deployment opts into an origin agent cluster and limits the `tools` Permissions Policy to the same origin, aligning with WebMCP's current document-isolation and permissions requirements.
 
 ## Read-only tools
@@ -79,3 +81,7 @@ get_history({ objectIds: ["launch-date"] })
 ```
 
 This loop is the point of the app: human and agent continuously work on one persistent artifact.
+
+## Evidence freshness rule
+
+When a human edits evidence that an active proposal relied on, Commonplace marks that proposal **stale** and disables acceptance. An agent must re-read `get_history` and `get_objects` before submitting a replacement `propose_changes` call. This makes the human edit consequential: it cannot be silently overwritten or accepted against outdated reasoning.

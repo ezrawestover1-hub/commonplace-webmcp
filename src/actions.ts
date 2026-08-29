@@ -68,6 +68,18 @@ export const workspaceActions = {
     return withEvent({ ...state, connections: [...state.connections, next] }, actor, "Created a dependency", [connection.from, connection.to]);
   },
   propose: (state: WorkspaceState, proposal: Proposal): WorkspaceState => withEvent({ ...state, proposal, agentStatus: "waiting" }, "agent", `Proposed ${proposal.changes.length} changes`, proposal.objectIds),
+  markProposalStale: (state: WorkspaceState, objectId: string): WorkspaceState => {
+    if (!state.proposal || state.proposal.status !== "pending" || !state.proposal.objectIds.includes(objectId)) return state;
+    return withEvent({ ...state, proposal: { ...state.proposal, status: "stale" }, agentStatus: "waiting" }, "system", "Human evidence changed; the prior agent proposal is stale", [objectId, ...state.proposal.objectIds]);
+  },
+  proposeEvidenceRecheck: (state: WorkspaceState): WorkspaceState => {
+    const beta = state.objects.find((object) => object.id === "beta-feedback");
+    const proposal: Proposal = {
+      id: "aurora-evidence-recheck", title: "Re-check launch after beta evidence", summary: "October 14 → October 28", reason: `The human updated Beta feedback to “${beta?.content ?? "new evidence"}.” A later date protects time to resolve the reported onboarding regressions.`, changes: ["Move launch date to October 28", "Schedule onboarding regression review", "Keep beta evidence attached to the decision"], objectIds: ["launch-date", "beta-feedback", "fix-signup"], confidence: 93, status: "pending",
+      operations: [{ kind: "update", id: "launch-date", patch: { content: "October 28", status: "confirmed", confidence: 93, approval: "approved" } }]
+    };
+    return workspaceActions.propose(state, proposal);
+  },
   acceptProposal: (state: WorkspaceState): WorkspaceState => {
     if (!state.proposal || state.proposal.status !== "pending") return state;
     const defaultOperations: ProposalOperation[] = [{ kind: "update", id: "launch-date", patch: { content: "October 21", status: "confirmed", confidence: 100, approval: "approved" } }];
