@@ -4,13 +4,15 @@ import type { Proposal, ProposalOperation, WorkspaceObject, WorkspaceState } fro
 
 type Tool = { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, unknown>; execute: (input: any) => Promise<unknown> | unknown };
 type ModelContextDocument = Document & { modelContext?: { registerTool: (tool: Tool, options?: { signal?: AbortSignal }) => Promise<void> } };
+export type ToolTraceEvent = { id: string; tool: string; summary: string; objectIds?: string[]; at: string; outcome: "success" | "error" };
+export type WebMCPRegistration = { supported: boolean; toolCount: number; cleanup: () => void };
 
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
 const ids = (state: WorkspaceState, objectIds?: string[]) => objectIds?.length ? state.objects.filter((object) => objectIds.includes(object.id)) : state.objects;
 
-export function registerCommonplaceTools(getState: () => WorkspaceState, setState: Dispatch<SetStateAction<WorkspaceState>>) {
+export function registerCommonplaceTools(getState: () => WorkspaceState, setState: Dispatch<SetStateAction<WorkspaceState>>, onTrace?: (event: ToolTraceEvent) => void): WebMCPRegistration {
   const context = (document as ModelContextDocument).modelContext;
-  if (typeof context?.registerTool !== "function") return () => undefined;
+  if (typeof context?.registerTool !== "function") return { supported: false, toolCount: 0, cleanup: () => undefined };
   const controller = new AbortController();
   const update = (work: (current: WorkspaceState) => WorkspaceState) => setState((current) => work(current));
   const tools: Tool[] = [
@@ -87,6 +89,20 @@ export function registerCommonplaceTools(getState: () => WorkspaceState, setStat
       execute: async (input) => { const state = getState(); return state.activity.filter((entry) => !input.objectIds?.length || entry.objectIds?.some((id: string) => input.objectIds.includes(id))).slice(-30); }
     }
   ];
-  Promise.all(tools.map((tool) => context.registerTool(tool, { signal: controller.signal }).catch((error: unknown) => console.warn(`Could not register ${tool.name}`, error))));
-  return () => controller.abort();
+  const tracedTools = tools.map((tool) => ({
+    ...tool,
+    execute: async (input: unknown) => {
+      try {
+        const result = await tool.execute(input);
+        const objectIds = Array.isArray((input as { objectIds?: unknown })?.objectIds) ? (input as { objectIds: string[] }).objectIds : undefined;
+        onTrace?.({ id: `tool-${Date.now()}-${tool.name}`, tool: tool.name, summary: tool.description, objectIds, at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }), outcome: "success" });
+        return result;
+      } catch (error) {
+        onTrace?.({ id: `tool-${Date.now()}-${tool.name}`, tool: tool.name, summary: error instanceof Error ? error.message : "The tool could not complete this request.", at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }), outcome: "error" });
+        throw error;
+      }
+    }
+  }));
+  Promise.all(tracedTools.map((tool) => context.registerTool(tool, { signal: controller.signal }).catch((error: unknown) => console.warn(`Could not register ${tool.name}`, error))));
+  return { supported: true, toolCount: tools.length, cleanup: () => controller.abort() };
 }

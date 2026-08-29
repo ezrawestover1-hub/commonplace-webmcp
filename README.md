@@ -16,6 +16,12 @@ Most web apps have a visual interface for people and a separate API for software
 
 Commonplace makes the shared artifact canonical. A **human** can click, drag, edit, connect, decide, and lock objects. An **agent** can inspect, search, create, update, move, group, transform, connect, propose, and request a decision through WebMCP. Neither gets a separate copy of the workspace.
 
+## V2 guided proof
+
+The default workspace now opens with a four-step collaboration guide and a live **Agent trace**. It makes the exact handoff visible: inspect the semantic workspace, compare the relevant objects, create a reviewable proposal, then let a human apply the canonical change. Clicking a trace event highlights the corresponding canvas objects.
+
+Connection status is intentionally honest. When the browser exposes `document.modelContext.registerTool`, Commonplace reports the registered tool count. When it does not, it says so and directs judges to a WebMCP-capable host. The in-app guided walkthrough is clearly a preview of that exchange; it does not claim an autonomous external model connection.
+
 The resulting pattern is collaboration rather than autopilot:
 
 1. The agent reads the current workspace semantically.
