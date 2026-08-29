@@ -98,7 +98,7 @@ export function App() {
       </div>
     </section>
     {!showPresent && <Inspector selected={selected} workspace={workspace} trace={trace} showTrace={showTrace} focusIds={focusIds} onTraceClick={(event) => { setFocusIds(event.objectIds ?? []); event.objectIds?.[0] && applyWorkspace((current) => workspaceActions.select(current, event.objectIds![0])); }} onToggleTrace={() => setShowTrace((value) => !value)} onUpdate={(id, patch) => applyWorkspace((current) => workspaceActions.updateObject(current, id, patch, "human"))} onAccept={() => { applyWorkspace((current) => workspaceActions.acceptProposal(current)); appendTrace({ id: `human-${Date.now()}`, tool: "human_accepted_proposal", summary: "Human accepted the proposed October 21 decision. The shared canonical object updated.", objectIds: ["launch-date"], at: "now", outcome: "success" }); setGuideStep(3); setShowTrace(true); setFocusIds(["launch-date"]); }} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
-    {showPermissions && <Permissions workspace={workspace} onClose={() => setShowPermissions(false)} />}
+    {showPermissions && <Permissions workspace={workspace} onToggle={(key) => applyWorkspace((current) => ({ ...current, permissions: { ...current.permissions, [key]: !current.permissions[key] } }))} onClose={() => setShowPermissions(false)} />}
   </main>;
 }
 
@@ -174,7 +174,7 @@ function CanvasCard({ object, selected, focused, onSelect, onMove, withinGroup =
 }
 
 function CanvasControls({ onRun, isRunning, onAdd }: { onRun: () => void; isRunning: boolean; onAdd: () => void }) {
-  return <><div className="canvas-tools"><button title="Select"><MousePointer2 size={17} /></button><button title="Pan"><Hand size={17} /></button><button title="Add shared note" onClick={onAdd}><Plus size={18} /></button><button title="Connect"><Network size={17} /></button></div><div className="zoom-control"><button>−</button><span>100%</span><button>+</button></div><button className="agent-demo-trigger" onClick={onRun} disabled={isRunning}><Bot size={17} />{isRunning ? "Agent is organizing…" : "Run agent collaboration"}</button></>;
+  return <><div className="canvas-tools"><button title="Add shared note" onClick={onAdd}><Plus size={18} /> Add note</button></div><button className="agent-demo-trigger" onClick={onRun} disabled={isRunning}><Bot size={17} />{isRunning ? "Agent is organizing…" : "Preview safe agent action"}</button></>;
 }
 
 function Inspector({ selected, workspace, trace, showTrace, onTraceClick, onToggleTrace, onUpdate, onAccept, onReject, onPermissions, showActivity }: { selected: WorkspaceObject; workspace: WorkspaceState; trace: ToolTraceEvent[]; showTrace: boolean; focusIds: string[]; onTraceClick: (event: ToolTraceEvent) => void; onToggleTrace: () => void; onUpdate: (id: string, patch: Partial<WorkspaceObject>) => void; onAccept: () => void; onReject: () => void; onPermissions: () => void; showActivity: boolean }) {
@@ -219,7 +219,7 @@ function ActivityPanel({ events }: { events: ActivityEvent[] }) {
   return <section className="activity-panel"><div className="activity-title"><span><Bot size={16} />Commonplace Agent</span><i>Active</i></div>{events.slice(-5).reverse().map((event) => <div className="activity-event" key={event.id}><Clock3 size={14} /><div><p>{event.text}</p><small>{event.actor === "human" ? "You" : "Agent"} · {event.at}</small></div></div>)}</section>;
 }
 
-function Permissions({ workspace, onClose }: { workspace: WorkspaceState; onClose: () => void }) {
+function Permissions({ workspace, onToggle, onClose }: { workspace: WorkspaceState; onToggle: (key: keyof WorkspaceState["permissions"]) => void; onClose: () => void }) {
   const entries = [["Read workspace", "read"], ["Create objects", "create"], ["Modify unlocked objects", "modify"], ["Reorganize canvas", "reorganize"], ["Connect objects", "connect"], ["Delete objects", "delete"]] as const;
-  return <div className="modal-backdrop" onMouseDown={onClose}><section className="permissions-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={onClose}><X size={19} /></button><span className="modal-icon"><LockKeyhole size={20} /></span><h2>Commonplace access</h2><p>Agents receive explicit capabilities. Destructive changes stay human-controlled.</p><div className="permission-list">{entries.map(([label, key]) => <div key={key}><span>{label}</span><b className={workspace.permissions[key] ? "allowed" : "denied"}>{workspace.permissions[key] ? "Allowed" : "Off"}</b></div>)}</div><button className="accept-button" onClick={onClose}>Done</button></section></div>;
+  return <div className="modal-backdrop" onMouseDown={onClose}><section className="permissions-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={onClose}><X size={19} /></button><span className="modal-icon"><LockKeyhole size={20} /></span><h2>Commonplace access</h2><p>Agents receive explicit capabilities. Destructive changes stay human-controlled.</p><div className="permission-list">{entries.map(([label, key]) => <button key={key} onClick={() => onToggle(key)}><span>{label}</span><b className={workspace.permissions[key] ? "allowed" : "denied"}>{workspace.permissions[key] ? "Allowed" : "Off"}</b></button>)}</div><button className="accept-button" onClick={onClose}>Done</button></section></div>;
 }
