@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { ArrowLeftRight, Bot, Check, ChevronDown, CircleHelp, Clock3, FileText, Grip, Hand, History, LayoutGrid, LockKeyhole, MoreHorizontal, MousePointer2, Network, Play, Plus, Search, Settings, Sparkles, Undo2, X } from "lucide-react";
 import { workspaceActions } from "./actions";
 import { createAuroraWorkspace, createResearchWorkspace } from "./data";
@@ -17,10 +17,28 @@ export function App() {
   const [showPermissions, setShowPermissions] = useState(false);
   const [showPresent, setShowPresent] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
   const latest = useRef(workspace);
+  const undoStack = useRef<WorkspaceState[]>([]);
   latest.current = workspace;
 
-  useEffect(() => registerCommonplaceTools(() => latest.current, setWorkspace), []);
+  const applyWorkspace = useCallback((action: SetStateAction<WorkspaceState>) => {
+    setWorkspace((current) => {
+      const next = typeof action === "function" ? action(current) : action;
+      if (next !== current) undoStack.current = [...undoStack.current.slice(-19), current];
+      return next;
+    });
+    setCanUndo(true);
+  }, []);
+
+  const undo = useCallback(() => {
+    const previous = undoStack.current.pop();
+    if (!previous) return;
+    setWorkspace(previous);
+    setCanUndo(undoStack.current.length > 0);
+  }, []);
+
+  useEffect(() => registerCommonplaceTools(() => latest.current, applyWorkspace), [applyWorkspace]);
 
   const selected = workspace.objects.find((object) => object.id === workspace.selectedId) ?? workspace.objects[0];
   const groups = workspace.objects.filter((object) => object.type === "group");
@@ -28,29 +46,29 @@ export function App() {
 
   const runAgent = useCallback(() => {
     setIsRunning(true);
-    setWorkspace((current) => ({ ...workspaceActions.organizeAurora(current), agentStatus: "working" }));
+    applyWorkspace((current) => ({ ...workspaceActions.organizeAurora(current), agentStatus: "working" }));
     window.setTimeout(() => {
-      setWorkspace((current) => ({ ...current, agentStatus: "waiting", activity: [...current.activity, { id: `event-${Date.now()}`, actor: "agent", text: current.id === "aurora-launch" ? "Waiting for your decision" : "Waiting for evidence validation", at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), objectIds: [current.selectedId] }] }));
+      applyWorkspace((current) => ({ ...current, agentStatus: "waiting", activity: [...current.activity, { id: `event-${Date.now()}`, actor: "agent", text: current.id === "aurora-launch" ? "Waiting for your decision" : "Waiting for evidence validation", at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), objectIds: [current.selectedId] }] }));
       setIsRunning(false);
     }, 1200);
-  }, []);
+  }, [applyWorkspace]);
 
-  const switchExample = (next: WorkspaceExample) => { setExample(next); setWorkspace(next === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); setHome(false); };
-  const reset = () => setWorkspace(example === "aurora" ? createAuroraWorkspace() : createResearchWorkspace());
+  const switchExample = (next: WorkspaceExample) => { setExample(next); undoStack.current = []; setCanUndo(false); setWorkspace(next === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); setHome(false); };
+  const reset = () => { undoStack.current = []; setCanUndo(false); setWorkspace(example === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); };
 
   if (home) return <Landing onOpen={switchExample} />;
 
   return <main className={`app-shell ${showPresent ? "presenting" : ""}`}>
-    {!showPresent && <Sidebar onReset={reset} />}
+    {!showPresent && <Sidebar onReset={reset} onUndo={undo} canUndo={canUndo} />}
     <section className="workspace-shell">
       {!showPresent && <Header name={workspace.name} status={workspace.agentStatus} onPresent={() => setShowPresent(true)} onActivity={() => setShowActivity((value) => !value)} onSwitch={() => switchExample(example === "aurora" ? "research" : "aurora")} />}
       <div className="workspace-body">
-        <Canvas workspace={workspace} groups={groups} cardById={cardById} onSelect={(id) => setWorkspace((current) => workspaceActions.select(current, id))} onMove={(id, x, y) => setWorkspace((current) => workspaceActions.moveObjects(current, [{ id, x, y }], "human"))} />
+        <Canvas workspace={workspace} groups={groups} cardById={cardById} onSelect={(id) => applyWorkspace((current) => workspaceActions.select(current, id))} onMove={(id, x, y) => applyWorkspace((current) => workspaceActions.moveObjects(current, [{ id, x, y }], "human"))} />
         {showPresent && <button className="exit-present" onClick={() => setShowPresent(false)}><X size={16} /> Exit present mode</button>}
         {!showPresent && <CanvasControls onRun={runAgent} isRunning={isRunning} />}
       </div>
     </section>
-    {!showPresent && <Inspector selected={selected} workspace={workspace} onAccept={() => setWorkspace((current) => workspaceActions.acceptProposal(current))} onReject={() => setWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
+    {!showPresent && <Inspector selected={selected} workspace={workspace} onAccept={() => applyWorkspace((current) => workspaceActions.acceptProposal(current))} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
     {showPermissions && <Permissions workspace={workspace} onClose={() => setShowPermissions(false)} />}
   </main>;
 }
@@ -63,12 +81,13 @@ function Landing({ onOpen }: { onOpen: (example: WorkspaceExample) => void }) {
   </main>;
 }
 
-function Sidebar({ onReset }: { onReset: () => void }) {
+function Sidebar({ onReset, onUndo, canUndo }: { onReset: () => void; onUndo: () => void; canUndo: boolean }) {
   const primary = [{ icon: LayoutGrid, label: "Canvas", active: true }, { icon: Search, label: "Search" }, { icon: FileText, label: "Notes" }, { icon: Check, label: "Tasks" }, { icon: Bot, label: "Agents" }, { icon: Network, label: "Activity" }];
   return <aside className="sidebar">
     <div className="brand"><span className="brand-mark" /> <strong>Commonplace</strong></div>
     <nav>{primary.map(({ icon: Icon, label, active }) => <button key={label} className={active ? "nav-item active" : "nav-item"}><Icon size={17} strokeWidth={1.65} /> {label}</button>)}</nav>
     <div className="nav-spacer" />
+    <button className="nav-item" onClick={onUndo} disabled={!canUndo}><Undo2 size={17} strokeWidth={1.65} /> Undo last change</button>
     <button className="nav-item" onClick={onReset}><Undo2 size={17} strokeWidth={1.65} /> Reset demo</button>
     <button className="nav-item"><Settings size={17} strokeWidth={1.65} /> Settings</button>
     <button className="nav-item"><CircleHelp size={17} strokeWidth={1.65} /> Help</button>
