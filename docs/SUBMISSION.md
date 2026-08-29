@@ -1,5 +1,9 @@
 # WebMCP Challenge submission package
 
+## Live URL
+
+https://commonplace-webmcp-sigma.vercel.app
+
 ## Devpost tagline
 
 **A shared visual workspace where people use the interface and agents use WebMCP—on the exact same work.**
@@ -66,7 +70,7 @@ Commonplace is a React + TypeScript + Vite app. Every workspace object carries s
 
 ## Release checklist
 
-- [ ] Add the deployed HTTPS URL to Devpost.
+- [x] Add the deployed HTTPS URL to Devpost.
 - [ ] Add the public GitHub/GitLab/Bitbucket repository URL to Devpost.
 - [ ] Confirm the MIT license badge is visible on the public repository page.
 - [ ] Upload the completed narrated demo as a public YouTube video, then add its URL.

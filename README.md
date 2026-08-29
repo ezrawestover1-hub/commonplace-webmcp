@@ -6,6 +6,10 @@ Commonplace is a shared visual workspace where people use a canvas and agents us
 
 It was created for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) during the August 25–September 3, 2026 submission period.
 
+## Live demo
+
+**[Open Commonplace](https://commonplace-webmcp-sigma.vercel.app)** — a public HTTPS deployment for judge access.
+
 ## Why Commonplace
 
 Most web apps have a visual interface for people and a separate API for software. That forces an agent to either guess its way through pixels or maintain a parallel representation of the work.
