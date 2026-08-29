@@ -2,13 +2,16 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 
 type Point = { x: number; y: number };
 type PlayPhase = "idle" | "held" | "human-throw" | "agent-catch" | "agent-return";
+type AgentResponse = { catch: string; return: string; landing: number; arc: number; spin: number; duration: number };
 
 const BLOCK_RADIUS = 24;
 const MAX_SPEED = 1.35;
-const CATCH_VARIATIONS = [
-  { catch: "Nice throw. Mine!", return: "A gentle arc back to you." },
-  { catch: "Caught clean.", return: "Sending it right back." },
-  { catch: "Perfect timing.", return: "A little spin for style." },
+const AGENT_PLANS = [
+  { catch: "Caught clean.", return: "High arc selected.", landing: 0.52, arc: 1.12, spin: 1, duration: 760 },
+  { catch: "I have it.", return: "Soft bank, your side.", landing: 0.59, arc: 0.78, spin: -1, duration: 680 },
+  { catch: "Timing locked.", return: "Long curve, light spin.", landing: 0.66, arc: 1.3, spin: 1, duration: 840 },
+  { catch: "Tracked it.", return: "Quick low return.", landing: 0.55, arc: 0.62, spin: -1, duration: 610 },
+  { catch: "Mine for a second.", return: "Float-back trajectory.", landing: 0.63, arc: 1.46, spin: 1, duration: 900 },
 ];
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -55,10 +58,16 @@ export function PlayBlock() {
     const rect = bounds();
     return rect ? { x: rect.width * 0.76, y: Math.max(74, rect.height * 0.23) } : positionRef.current;
   };
-  const returnSpot = (variation: number) => {
+  const chooseAgentResponse = (): AgentResponse => {
+    const turn = turnRef.current++;
+    const momentum = Math.round((Math.abs(velocityRef.current.x) + Math.abs(velocityRef.current.y)) * 10);
+    const plan = AGENT_PLANS[(turn * 3 + momentum) % AGENT_PLANS.length];
+    return { ...plan, catch: `${plan.catch} Move ${turn + 1}.`, return: `Move ${turn + 1}: ${plan.return}` };
+  };
+  const returnSpot = (response: AgentResponse) => {
     const rect = bounds();
     if (!rect) return positionRef.current;
-    const x = [0.52, 0.59, 0.66][variation % 3] * rect.width;
+    const x = response.landing * rect.width;
     return { x, y: Math.min(rect.height - 88, Math.max(118, rect.height * 0.81)) };
   };
   const later = (callback: () => void, delay: number) => {
@@ -69,20 +78,20 @@ export function PlayBlock() {
     timersRef.current.push(timer);
   };
 
-  const returnFromAgent = (variation: number) => {
+  const returnFromAgent = (response: AgentResponse) => {
     const start = positionRef.current;
-    const end = keepInBounds(returnSpot(variation));
-    const duration = reducedMotion() ? 160 : 760;
+    const end = keepInBounds(returnSpot(response));
+    const duration = reducedMotion() ? 160 : response.duration;
     const startedAt = performance.now();
-    const arc = Math.min(128, Math.max(74, Math.abs(end.x - start.x) * 0.31));
+    const arc = Math.min(150, Math.max(66, Math.abs(end.x - start.x) * 0.31 * response.arc));
     setPlayPhase("agent-return");
-    setMessage(CATCH_VARIATIONS[variation].return);
+    setMessage(response.return);
     const animate = (now: number) => {
       const raw = clamp((now - startedAt) / duration, 0, 1);
       const eased = 1 - Math.pow(1 - raw, 3);
       const point = { x: start.x + (end.x - start.x) * eased, y: start.y + (end.y - start.y) * eased - Math.sin(raw * Math.PI) * arc };
       place(point);
-      setRotation((variation % 2 === 0 ? 1 : -1) * raw * 390);
+      setRotation(response.spin * raw * (300 + response.arc * 100));
       if (raw < 1) frameRef.current = requestAnimationFrame(animate);
       else {
         frameRef.current = null;
@@ -99,12 +108,12 @@ export function PlayBlock() {
     if (phaseRef.current === "held") return;
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
-    const variation = turnRef.current++ % CATCH_VARIATIONS.length;
+    const response = chooseAgentResponse();
     setPlayPhase("agent-catch");
-    setMessage(CATCH_VARIATIONS[variation].catch);
+    setMessage(response.catch);
     place(agentHand());
     setRotation(0);
-    later(() => returnFromAgent(variation), reducedMotion() ? 120 : 360);
+    later(() => returnFromAgent(response), reducedMotion() ? 120 : 360);
   };
 
   const launchHumanThrow = () => {
@@ -196,7 +205,7 @@ export function PlayBlock() {
       onPointerUp={release}
       onPointerCancel={release}
     >
-      <span className="play-block-face"><i /><i /><i /></span>
+      <span className="play-block-face" />
       <span className="play-block-shadow" />
     </button>
   </div>;
