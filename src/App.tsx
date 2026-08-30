@@ -155,10 +155,15 @@ function Landing({ onOpen }: { onOpen: (example: WorkspaceExample) => void }) {
 }
 
 function Sidebar({ onReset, onUndo, onRedo, canUndo, canRedo, filter, onFilter, guideStep, onStart }: { onReset: () => void; onUndo: () => void; onRedo: () => void; canUndo: boolean; canRedo: boolean; filter: string; onFilter: (value: string) => void; guideStep: number; onStart: () => void }) {
-  const steps = ["Orient together", "Surface the conflict", "Review the proposal", "Confirm shared state"];
+  const steps = [
+    ["Read one shared workspace", "The agent sees the same decision objects you see."],
+    ["Human adds new evidence", "A human change immediately invalidates the old proposal."],
+    ["Agent re-checks structured context", "It must read history and affected objects before proposing again."],
+    ["Human approves the fresh change", "Only a human can make the shared decision canonical."]
+  ];
   return <aside className="sidebar">
     <div className="brand"><span className="brand-mark" /> <strong>Commonplace</strong></div>
-    <section className="collaboration-guide"><span className="guide-kicker">Collaboration guide</span><h2>One decision. Shared context.</h2><p>Watch the person and agent work on the same object—not separate copies.</p><label className="workspace-filter"><Search size={14} /><input value={filter} onChange={(event) => onFilter(event.target.value)} placeholder="Filter workspace" /></label><ol>{steps.map((step, index) => <li className={guideStep > index ? "complete" : guideStep === index ? "active" : ""} key={step}><b>{index + 1}</b><span>{step}<small>{["Read the plan together.", "Compare evidence and uncertainty.", "Keep the change reviewable.", "Apply only after human approval."][index]}</small></span></li>)}</ol><button className="guide-start" onClick={onStart}><Sparkles size={15} />Try the 60-second collaboration</button></section>
+    <section className="collaboration-guide"><span className="guide-kicker">Judge the collaboration</span><h2>One decision. Shared context.</h2><p>See the exact moment fresh human evidence forces an agent to re-check its work.</p><label className="workspace-filter"><Search size={14} /><input value={filter} onChange={(event) => onFilter(event.target.value)} placeholder="Filter workspace" /></label><ol>{steps.map(([title, detail], index) => <li className={guideStep > index ? "complete" : guideStep === index ? "active" : ""} key={title}><b>{index + 1}</b><span>{title}<small>{detail}</small></span></li>)}</ol><button className="guide-start" onClick={onStart}><Sparkles size={15} />Preview the collaboration</button><small className="guide-disclosure">Local preview steps are labeled in the trace. Native WebMCP calls are labeled separately.</small></section>
     <div className="nav-spacer" />
     <button className="nav-item" onClick={onUndo} disabled={!canUndo}><Undo2 size={17} strokeWidth={1.65} /> Undo last change</button>
     <button className="nav-item" onClick={onRedo} disabled={!canRedo}><History size={17} strokeWidth={1.65} /> Redo last change</button>
