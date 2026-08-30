@@ -4,11 +4,20 @@ import type { Proposal, ProposalOperation, WorkspaceObject, WorkspaceState } fro
 
 type Tool = { name: string; description: string; inputSchema: Record<string, unknown>; annotations?: Record<string, unknown>; execute: (input: any, options?: { signal?: AbortSignal }) => Promise<unknown> | unknown };
 type ModelContextDocument = Document & { modelContext?: { registerTool: (tool: Tool, options?: { signal?: AbortSignal }) => Promise<void> } };
-export type ToolTraceEvent = { id: string; tool: string; summary: string; objectIds?: string[]; at: string; outcome: "success" | "error" };
+export type ToolTraceEvent = { id: string; tool: string; summary: string; objectIds?: string[]; at: string; outcome: "success" | "error"; source: "native" | "demo" | "human" };
 export type WebMCPRegistration = { supported: boolean; toolCount: number; cleanup: () => void; ready: Promise<{ state: "ready" | "failed" | "unsupported"; registered: number; failedTools: string[] }> };
 
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
 const ids = (state: WorkspaceState, objectIds?: string[]) => objectIds?.length ? state.objects.filter((object) => objectIds.includes(object.id)) : state.objects;
+const traceIds = (input: unknown): string[] | undefined => {
+  if (!input || typeof input !== "object") return undefined;
+  const value = input as { objectIds?: unknown; objectId?: unknown; updates?: Array<{ id?: unknown }>; moves?: Array<{ id?: unknown }>; transforms?: Array<{ id?: unknown }>; from?: unknown; to?: unknown };
+  const ids = [
+    ...(Array.isArray(value.objectIds) ? value.objectIds : []), value.objectId,
+    ...(value.updates?.map((item) => item.id) ?? []), ...(value.moves?.map((item) => item.id) ?? []), ...(value.transforms?.map((item) => item.id) ?? []), value.from, value.to
+  ].filter((id): id is string => typeof id === "string");
+  return ids.length ? [...new Set(ids)] : undefined;
+};
 
 export function registerCommonplaceTools(getState: () => WorkspaceState, setState: Dispatch<SetStateAction<WorkspaceState>>, onTrace?: (event: ToolTraceEvent) => void): WebMCPRegistration {
   const context = (document as ModelContextDocument).modelContext;
@@ -95,11 +104,10 @@ export function registerCommonplaceTools(getState: () => WorkspaceState, setStat
       try {
         if (options?.signal?.aborted) throw new DOMException("WebMCP tool execution was cancelled.", "AbortError");
         const result = await tool.execute(input, options);
-        const objectIds = Array.isArray((input as { objectIds?: unknown })?.objectIds) ? (input as { objectIds: string[] }).objectIds : undefined;
-        onTrace?.({ id: `tool-${Date.now()}-${tool.name}`, tool: tool.name, summary: tool.description, objectIds, at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }), outcome: "success" });
+        onTrace?.({ id: `tool-${Date.now()}-${tool.name}`, tool: tool.name, summary: tool.description, objectIds: traceIds(input), at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }), outcome: "success", source: "native" });
         return result;
       } catch (error) {
-        onTrace?.({ id: `tool-${Date.now()}-${tool.name}`, tool: tool.name, summary: error instanceof Error ? error.message : "The tool could not complete this request.", at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }), outcome: "error" });
+        onTrace?.({ id: `tool-${Date.now()}-${tool.name}`, tool: tool.name, summary: error instanceof Error ? error.message : "The tool could not complete this request.", objectIds: traceIds(input), at: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" }), outcome: "error", source: "native" });
         throw error;
       }
     }

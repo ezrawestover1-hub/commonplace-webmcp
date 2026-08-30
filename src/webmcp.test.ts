@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuroraWorkspace } from "./data";
-import { registerCommonplaceTools } from "./webmcp";
+import { registerCommonplaceTools, type ToolTraceEvent } from "./webmcp";
 
 const originalModelContext = Object.getOwnPropertyDescriptor(document, "modelContext");
 
@@ -41,5 +41,21 @@ describe("WebMCP tool contract", () => {
     Object.defineProperty(document, "modelContext", { configurable: true, value: { registerTool } });
     const registration = registerCommonplaceTools(createAuroraWorkspace, vi.fn());
     await expect(registration.ready).resolves.toEqual({ state: "failed", registered: 11, failedTools: ["get_history"] });
+  });
+
+  it("labels executed native tools and highlights their affected objects", async () => {
+    const registerTool = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(document, "modelContext", { configurable: true, value: { registerTool } });
+    let workspace = createAuroraWorkspace();
+    const traces: ToolTraceEvent[] = [];
+    const registration = registerCommonplaceTools(() => workspace, (update) => { workspace = typeof update === "function" ? update(workspace) : update; }, (event) => traces.push(event));
+    await registration.ready;
+
+    const updateTool = registerTool.mock.calls.map(([tool]) => tool).find((tool) => tool.name === "update_objects");
+    await updateTool.execute({ updates: [{ id: "launch-date", content: "October 28" }] });
+
+    expect(traces.at(-1)).toMatchObject({ tool: "update_objects", source: "native", outcome: "success", objectIds: ["launch-date"] });
+    expect(workspace.objects.find((object) => object.id === "launch-date")?.content).toBe("October 28");
+    registration.cleanup();
   });
 });

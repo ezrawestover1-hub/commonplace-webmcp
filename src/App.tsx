@@ -87,7 +87,7 @@ export function App() {
       return id === "beta-feedback" ? workspaceActions.markProposalStale(updated, id) : updated;
     });
     if (id === "beta-feedback") {
-      appendTrace({ id: `human-evidence-${Date.now()}`, tool: "human_updated_evidence", summary: "Human changed Beta feedback. The earlier proposal is no longer safe to accept.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success" });
+      appendTrace({ id: `human-evidence-${Date.now()}`, tool: "human_updated_evidence", summary: "Human changed Beta feedback. The earlier proposal is no longer safe to accept.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success", source: "human" });
       setFocusIds(["beta-feedback", "launch-date"]); setShowTrace(true);
     }
   }, [appendTrace, applyWorkspace]);
@@ -97,20 +97,20 @@ export function App() {
       const updated = workspaceActions.updateObject(current, "beta-feedback", { content: "68 responses · 9 critical onboarding regressions", priority: "high" }, "human");
       return { ...workspaceActions.markProposalStale(updated, "beta-feedback"), selectedId: "launch-date" };
     });
-    appendTrace({ id: `human-evidence-${Date.now()}`, tool: "human_updated_evidence", summary: "Human added critical beta evidence. The earlier proposal is now stale and cannot be accepted.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success" });
+    appendTrace({ id: `human-evidence-${Date.now()}`, tool: "human_updated_evidence", summary: "Human added critical beta evidence. The earlier proposal is now stale and cannot be accepted.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success", source: "human" });
     setFocusIds(["beta-feedback", "launch-date"]); setShowTrace(false);
   }, [appendTrace, applyWorkspace]);
   const previewEvidenceRecheck = useCallback(() => {
     setIsRunning(true); setShowTrace(true); setFocusIds(["beta-feedback", "launch-date", "fix-signup"]);
-    appendTrace({ id: `history-${Date.now()}`, tool: "get_history", summary: "Local preview: re-read the human evidence change before making another recommendation.", objectIds: ["beta-feedback"], at: "now", outcome: "success" });
-    window.setTimeout(() => appendTrace({ id: `objects-${Date.now()}`, tool: "get_objects", summary: "Local preview: read the dependent launch decision and onboarding task.", objectIds: ["beta-feedback", "launch-date", "fix-signup"], at: "now", outcome: "success" }), 450);
-    window.setTimeout(() => { applyWorkspace((current) => workspaceActions.proposeEvidenceRecheck(current)); appendTrace({ id: `recheck-${Date.now()}`, tool: "propose_changes", summary: "Local preview: proposed October 28 only after re-reading the edited human evidence.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success" }); setIsRunning(false); setShowTrace(false); }, 900);
+    appendTrace({ id: `history-${Date.now()}`, tool: "get_history", summary: "Local preview: re-read the human evidence change before making another recommendation.", objectIds: ["beta-feedback"], at: "now", outcome: "success", source: "demo" });
+    window.setTimeout(() => appendTrace({ id: `objects-${Date.now()}`, tool: "get_objects", summary: "Local preview: read the dependent launch decision and onboarding task.", objectIds: ["beta-feedback", "launch-date", "fix-signup"], at: "now", outcome: "success", source: "demo" }), 450);
+    window.setTimeout(() => { applyWorkspace((current) => workspaceActions.proposeEvidenceRecheck(current)); appendTrace({ id: `recheck-${Date.now()}`, tool: "propose_changes", summary: "Local preview: proposed October 28 only after re-reading the edited human evidence.", objectIds: ["beta-feedback", "launch-date"], at: "now", outcome: "success", source: "demo" }); setIsRunning(false); setShowTrace(false); }, 900);
   }, [appendTrace, applyWorkspace]);
 
   const runGuidedCollaboration = useCallback(() => {
     window.clearTimeout((window as Window & { commonplaceGuideTimer?: number }).commonplaceGuideTimer);
     setGuideStep(1); setShowTrace(true); setFocusIds(["launch-date"]); setTrace([]);
-    const add = (tool: string, summary: string, objectIds: string[]) => appendTrace({ id: `guided-${Date.now()}-${tool}`, tool, summary, objectIds, at: "now", outcome: "success" });
+    const add = (tool: string, summary: string, objectIds: string[]) => appendTrace({ id: `guided-${Date.now()}-${tool}`, tool, summary, objectIds, at: "now", outcome: "success", source: "demo" });
     add("inspect_workspace", "Read the launch plan, its groups, permissions, and unresolved decisions.", []);
     (window as Window & { commonplaceGuideTimer?: number }).commonplaceGuideTimer = window.setTimeout(() => {
       setGuideStep(2); setFocusIds(["beta-feedback", "launch-date"]);
@@ -141,7 +141,7 @@ export function App() {
         {!showPresent && <CanvasControls onRun={workspace.proposal?.status === "stale" ? previewEvidenceRecheck : runAgent} isRunning={isRunning} onCreate={createObject} onConnect={connectSelected} stale={workspace.proposal?.status === "stale"} />}
       </div>
     </section>
-    {!showPresent && <Inspector selected={selected} workspace={workspace} trace={trace} showTrace={showTrace} focusIds={focusIds} onTraceClick={(event) => { setFocusIds(event.objectIds ?? []); event.objectIds?.[0] && applyWorkspace((current) => workspaceActions.select(current, event.objectIds![0])); }} onShowObject={() => setShowTrace(false)} onShowTrace={() => setShowTrace(true)} onUpdate={updateHumanObject} onAddEvidence={addCriticalEvidence} onPreviewRecheck={previewEvidenceRecheck} onToggleLock={(id, locked) => updateHumanObject(id, { locked })} onVerifyLock={(object) => { try { workspaceActions.updateObject(latest.current, object.id, { content: "Agent attempted an edit" }, "agent"); } catch (error) { appendTrace({ id: `blocked-${Date.now()}`, tool: "update_objects", summary: error instanceof Error ? error.message : "The human lock blocked the agent.", objectIds: [object.id], at: "now", outcome: "error" }); setShowTrace(true); } }} onAccept={() => { applyWorkspace((current) => workspaceActions.acceptProposal(current)); appendTrace({ id: `human-${Date.now()}`, tool: "human_accepted_proposal", summary: `Human accepted ${latest.current.proposal?.summary ?? "the proposal"}. The shared canonical object updated.`, objectIds: ["launch-date"], at: "now", outcome: "success" }); setGuideStep(3); setShowTrace(true); setFocusIds(["launch-date"]); }} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
+    {!showPresent && <Inspector selected={selected} workspace={workspace} trace={trace} showTrace={showTrace} focusIds={focusIds} onTraceClick={(event) => { setFocusIds(event.objectIds ?? []); event.objectIds?.[0] && applyWorkspace((current) => workspaceActions.select(current, event.objectIds![0])); }} onShowObject={() => setShowTrace(false)} onShowTrace={() => setShowTrace(true)} onUpdate={updateHumanObject} onAddEvidence={addCriticalEvidence} onPreviewRecheck={previewEvidenceRecheck} onToggleLock={(id, locked) => updateHumanObject(id, { locked })} onVerifyLock={(object) => { try { workspaceActions.updateObject(latest.current, object.id, { content: "Agent attempted an edit" }, "agent"); } catch (error) { appendTrace({ id: `blocked-${Date.now()}`, tool: "update_objects", summary: error instanceof Error ? error.message : "The human lock blocked the agent.", objectIds: [object.id], at: "now", outcome: "error", source: "demo" }); setShowTrace(true); } }} onAccept={() => { applyWorkspace((current) => workspaceActions.acceptProposal(current)); appendTrace({ id: `human-${Date.now()}`, tool: "human_accepted_proposal", summary: `Human accepted ${latest.current.proposal?.summary ?? "the proposal"}. The shared canonical object updated.`, objectIds: ["launch-date"], at: "now", outcome: "success", source: "human" }); setGuideStep(3); setShowTrace(true); setFocusIds(["launch-date"]); }} onReject={() => applyWorkspace((current) => workspaceActions.rejectProposal(current))} onPermissions={() => setShowPermissions(true)} showActivity={showActivity} />}
     {showPermissions && <Permissions workspace={workspace} onToggle={(key) => applyWorkspace((current) => ({ ...current, permissions: { ...current.permissions, [key]: !current.permissions[key] } }))} onClose={() => setShowPermissions(false)} />}
   </main>;
 }
@@ -253,11 +253,11 @@ function InlineEditor({ selected, onUpdate, onToggleLock }: { selected: Workspac
 
 function TracePanel({ trace, onSelect }: { trace: ToolTraceEvent[]; onSelect: (event: ToolTraceEvent) => void }) {
   const starter: ToolTraceEvent[] = [
-    { id: "starter-1", tool: "inspect_workspace", summary: "Reads groups, permissions, and unresolved decisions without changing the canvas.", at: "ready", outcome: "success" },
-    { id: "starter-2", tool: "get_objects", summary: "Reads the exact structured objects the human sees on the shared canvas.", objectIds: ["beta-feedback", "launch-date"], at: "ready", outcome: "success" },
+    { id: "starter-1", tool: "inspect_workspace", summary: "Example read-only tool. Native invocations are labeled separately.", at: "preview", outcome: "success", source: "demo" },
+    { id: "starter-2", tool: "get_objects", summary: "Example shared-object read. Click a row to highlight its affected cards.", objectIds: ["beta-feedback", "launch-date"], at: "preview", outcome: "success", source: "demo" },
   ];
   const events = trace.length ? trace : starter;
-  return <section className="trace-panel"><div className="trace-heading"><div><span>Agent trace</span><p>{trace.length ? "Live calls and human decisions" : "Start the guided collaboration to watch the handoff."}</p></div><Radio size={17} /></div><div className="trace-list">{events.map((event, index) => <button key={event.id} className={`trace-event ${event.outcome}`} onClick={() => onSelect(event)}><span className="trace-number">{index + 1}</span><div><b>{event.tool}</b><p>{event.summary}</p><small>{event.at}</small></div><ChevronRight size={15} /></button>)}</div><div className="trace-foot"><CircleCheckBig size={15} />Every action is attributable and reviewable.</div></section>;
+  return <section className="trace-panel"><div className="trace-heading"><div><span>Agent trace</span><p>{trace.length ? "Every row names who or what produced it." : "Start a walkthrough or invoke a native tool to populate the ledger."}</p></div><Radio size={17} /></div><div className="trace-list">{events.map((event, index) => <button key={event.id} className={`trace-event ${event.outcome} ${event.source}`} onClick={() => onSelect(event)}><span className="trace-number">{index + 1}</span><div><b>{event.tool}</b><p>{event.summary}</p><small><i className={`trace-source ${event.source}`}>{event.source === "native" ? "Native WebMCP" : event.source === "human" ? "Human" : "Local preview"}</i>{event.at}</small></div><ChevronRight size={15} /></button>)}</div><div className="trace-foot"><CircleCheckBig size={15} />Native WebMCP, local previews, and human decisions remain distinct.</div></section>;
 }
 
 function Proposal({ proposal, onAccept, onReject }: { proposal: NonNullable<WorkspaceState["proposal"]>; onAccept: () => void; onReject: () => void }) {
