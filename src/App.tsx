@@ -29,6 +29,7 @@ export function App() {
   const latest = useRef(workspace);
   const undoStack = useRef<WorkspaceState[]>([]);
   const redoStack = useRef<WorkspaceState[]>([]);
+  const guideTimers = useRef<number[]>([]);
   latest.current = workspace;
 
   const applyWorkspace = useCallback((action: SetStateAction<WorkspaceState>) => {
@@ -108,19 +109,40 @@ export function App() {
   }, [appendTrace, applyWorkspace]);
 
   const runGuidedCollaboration = useCallback(() => {
-    window.clearTimeout((window as Window & { commonplaceGuideTimer?: number }).commonplaceGuideTimer);
-    setGuideStep(1); setShowTrace(true); setFocusIds(["launch-date"]); setTrace([]);
+    guideTimers.current.forEach((timer) => window.clearTimeout(timer));
+    guideTimers.current = [];
+    setGuideStep(0); setShowTrace(true); setFocusIds(["launch-date"]); setTrace([]);
     const add = (tool: string, summary: string, objectIds: string[]) => appendTrace({ id: `guided-${Date.now()}-${tool}`, tool, summary, objectIds, at: "now", outcome: "success", source: "demo" });
     add("inspect_workspace", "Read the launch plan, its groups, permissions, and unresolved decisions.", []);
-    (window as Window & { commonplaceGuideTimer?: number }).commonplaceGuideTimer = window.setTimeout(() => {
-      setGuideStep(2); setFocusIds(["beta-feedback", "launch-date"]);
+    guideTimers.current.push(window.setTimeout(() => {
+      setGuideStep(1); setFocusIds(["beta-feedback", "launch-date"]);
       add("get_objects", "Read Beta feedback and Launch date as the same structured objects shown on the canvas.", ["beta-feedback", "launch-date"]);
-    }, 900);
-    window.setTimeout(() => {
-      setGuideStep(2); setShowTrace(false); setFocusIds(["beta-feedback", "launch-date"]);
+    }, 650));
+    guideTimers.current.push(window.setTimeout(() => {
+      setGuideStep(1); setShowTrace(false); setFocusIds(["beta-feedback", "launch-date"]);
       add("propose_changes", "Proposed October 21. The canvas has not changed; human approval is still required.", ["launch-date"]);
       applyWorkspace((current) => ({ ...current, agentStatus: "waiting" }));
-    }, 1850);
+    }, 1300));
+    guideTimers.current.push(window.setTimeout(() => {
+      setGuideStep(2); setFocusIds(["beta-feedback", "launch-date"]);
+      applyWorkspace((current) => {
+        const updated = workspaceActions.updateObject(current, "beta-feedback", { content: "68 responses · 9 critical onboarding regressions", priority: "high" }, "human");
+        return { ...workspaceActions.markProposalStale(updated, "beta-feedback"), selectedId: "launch-date" };
+      });
+      add("human_updated_evidence", "Local preview: new human evidence invalidated the old proposal before it could be accepted.", ["beta-feedback", "launch-date"]);
+    }, 1950));
+    guideTimers.current.push(window.setTimeout(() => {
+      setShowTrace(true);
+      add("get_history", "Local preview: the agent re-read the human evidence change before making another recommendation.", ["beta-feedback"]);
+    }, 2600));
+    guideTimers.current.push(window.setTimeout(() => {
+      add("get_objects", "Local preview: the agent re-read the affected decision and onboarding work.", ["beta-feedback", "launch-date", "fix-signup"]);
+    }, 3100));
+    guideTimers.current.push(window.setTimeout(() => {
+      applyWorkspace((current) => workspaceActions.proposeEvidenceRecheck(current));
+      add("propose_changes", "Local preview: proposed October 28 only after re-reading the edited human evidence.", ["beta-feedback", "launch-date"]);
+      setGuideStep(3); setShowTrace(false); setIsRunning(false);
+    }, 3650));
   }, [appendTrace, applyWorkspace]);
 
   const switchExample = (next: WorkspaceExample) => { setExample(next); undoStack.current = []; redoStack.current = []; setCanUndo(false); setCanRedo(false); setWorkspace(next === "aurora" ? createAuroraWorkspace() : createResearchWorkspace()); setHome(false); };
@@ -157,13 +179,13 @@ function Landing({ onOpen }: { onOpen: (example: WorkspaceExample) => void }) {
 function Sidebar({ onReset, onUndo, onRedo, canUndo, canRedo, filter, onFilter, guideStep, onStart }: { onReset: () => void; onUndo: () => void; onRedo: () => void; canUndo: boolean; canRedo: boolean; filter: string; onFilter: (value: string) => void; guideStep: number; onStart: () => void }) {
   const steps = [
     ["Read one shared workspace", "The agent sees the same decision objects you see."],
-    ["Human adds new evidence", "A human change immediately invalidates the old proposal."],
-    ["Agent re-checks structured context", "It must read history and affected objects before proposing again."],
-    ["Human approves the fresh change", "Only a human can make the shared decision canonical."]
+    ["Review a safe proposal", "The canvas does not change until a human approves it."],
+    ["New human evidence invalidates it", "The old proposal is frozen before it can be accepted."],
+    ["Re-check, then decide", "The agent re-reads context; only a human can confirm the fresh change."]
   ];
   return <aside className="sidebar">
     <div className="brand"><span className="brand-mark" /> <strong>Commonplace</strong></div>
-    <section className="collaboration-guide"><span className="guide-kicker">Judge the collaboration</span><h2>One decision. Shared context.</h2><p>See the exact moment fresh human evidence forces an agent to re-check its work.</p><label className="workspace-filter"><Search size={14} /><input value={filter} onChange={(event) => onFilter(event.target.value)} placeholder="Filter workspace" /></label><ol>{steps.map(([title, detail], index) => <li className={guideStep > index ? "complete" : guideStep === index ? "active" : ""} key={title}><b>{index + 1}</b><span>{title}<small>{detail}</small></span></li>)}</ol><button className="guide-start" onClick={onStart}><Sparkles size={15} />Preview the collaboration</button><small className="guide-disclosure">Local preview steps are labeled in the trace. Native WebMCP calls are labeled separately.</small></section>
+    <section className="collaboration-guide"><span className="guide-kicker">Judge the collaboration</span><h2>One decision. Shared context.</h2><p>See the exact moment fresh human evidence forces an agent to re-check its work.</p><label className="workspace-filter"><Search size={14} /><input value={filter} onChange={(event) => onFilter(event.target.value)} placeholder="Filter workspace" /></label><ol>{steps.map(([title, detail], index) => <li className={guideStep > index ? "complete" : guideStep === index ? "active" : ""} key={title}><b>{index + 1}</b><span>{title}<small>{detail}</small></span></li>)}</ol><button className="guide-start" onClick={onStart}><Sparkles size={15} />Preview the full decision loop</button><small className="guide-disclosure">Local preview steps are labeled in the trace. Native WebMCP calls are labeled separately.</small></section>
     <div className="nav-spacer" />
     <button className="nav-item" onClick={onUndo} disabled={!canUndo}><Undo2 size={17} strokeWidth={1.65} /> Undo last change</button>
     <button className="nav-item" onClick={onRedo} disabled={!canRedo}><History size={17} strokeWidth={1.65} /> Redo last change</button>
