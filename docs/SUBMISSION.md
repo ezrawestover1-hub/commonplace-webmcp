@@ -82,7 +82,8 @@ Commonplace is a React + TypeScript + Vite app. Every workspace object carries s
 - [x] Verify the public judge URL exposes all 12 WebMCP tools in ChatGPT’s in-app browser.
 - [x] Verify a native browser run can call `get_history`, `get_objects`, and `propose_changes`, leaving a human-reviewable proposal.
 - [x] Confirm the public GitHub/GitLab/Bitbucket repository has a visible open-source license.
-- [ ] Record the revised 1:35 narrated demo from the verified native-agent run and upload it publicly to YouTube.
+- [x] Render and review a 98-second local demo draft with audio using frames captured from the verified public native-agent run.
+- [ ] Upload the approved demo as a public YouTube video, then add its URL.
 - [ ] Add the public live URL, public repo URL, public video URL, and truthful client-testing note to Devpost.
 - [ ] Save the Devpost submission before September 3, 2026 at 1:00 PM Pacific.
 - [ ] After the deadline, do not modify the submitted repo, live URL, video, or Devpost entry during judging.
