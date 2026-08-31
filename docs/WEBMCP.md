@@ -58,26 +58,20 @@ Creates a human-visible proposal with a reason, affected objects, confidence, an
 
 Creates or updates a decision with an explicit prompt and options. This lets the agent surface uncertainty rather than fabricate a resolution.
 
-## Example agent path
+## Example native agent path
 
 ```text
-inspect_workspace()
-  → identify Project Aurora and the current selection
+get_history({ objectIds: ["beta-feedback", "launch-date"] })
+  → read the attributable history before relying on a prior launch recommendation
 
-search_objects({ query: "launch", type: "decision" })
-  → find launch-date
+get_objects({ objectIds: ["beta-feedback", "launch-date", "fix-signup"] })
+  → read fresh human evidence, the unresolved decision, and its blocked dependency
 
-get_objects({ objectIds: ["launch-date", "beta-feedback"] })
-  → identify a tentative October 14 date and beta-feedback dependency
+propose_changes({ ... October 14 → October 28 ... })
+  → shared workspace displays a reviewable proposal; canonical date is unchanged
 
-propose_changes({ ... October 14 → October 21 ... })
-  → shared workspace displays proposal; canonical date is unchanged
-
-request_human_decision({ objectId: "launch-date", ... })
-  → agent waits for person’s judgment
-
-get_history({ objectIds: ["launch-date"] })
-  → agent learns whether the human accepted, rejected, or altered the plan
+human accepts in the UI
+  → structured operations update the canonical decision and attribute the commit to the human
 ```
 
 This loop is the point of the app: human and agent continuously work on one persistent artifact.
@@ -85,3 +79,13 @@ This loop is the point of the app: human and agent continuously work on one pers
 ## Evidence freshness rule
 
 When a human edits evidence that an active proposal relied on, Commonplace marks that proposal **stale** and disables acceptance. An agent must re-read `get_history` and `get_objects` before submitting a replacement `propose_changes` call. This makes the human edit consequential: it cannot be silently overwritten or accepted against outdated reasoning.
+
+## Trace provenance
+
+The interface records the origin of every visible trace entry:
+
+- **Native WebMCP** — a tool invocation supplied by the browser’s WebMCP capability.
+- **Local preview** — the deterministic in-product walkthrough used when a judge wants to understand the behavior without an external agent prompt.
+- **Human** — an edit, acceptance, or other authority-bearing UI decision.
+
+This prevents a guided demo from being mistaken for a live agent run while still making the safety rule easy to inspect.

@@ -24,7 +24,7 @@ Commonplace also treats new human evidence as a real collaboration event. If a p
 
 ### What people and agents can do together
 
-The Project Aurora demo begins with a scattered launch plan. The agent organizes the same workspace into Product, Research, Marketing, and Operations, creates visible dependencies, and detects that the tentative October 14 launch conflicts with beta feedback. Rather than guessing, it proposes October 21 and waits. The person can accept, reject, or alter the proposal directly on the canvas. When the person accepts, the canonical decision changes, the activity timeline records human approval, and the agent can continue from that shared current state.
+The Project Aurora demo begins with a shared launch decision. The agent reads structured history, the launch date, human Beta feedback, and the blocked signup task. It creates a reviewable October 28 proposal, but the canonical launch date remains untouched. The person can accept, reject, or alter the proposal directly on the canvas. When the person accepts, the canonical decision changes, the inspector confirms the human decision, and the agent can continue from that shared current state.
 
 This is the experience that was difficult before: not a chat transcript that keeps regenerating a plan, but a persistent artifact where a person can point, edit, and decide while an agent can reliably understand and act on the same objects.
 
@@ -32,62 +32,57 @@ This is the experience that was difficult before: not a chat transcript that kee
 
 Commonplace is a React + TypeScript + Vite app. Every workspace object carries semantic type, position, relationship data, actor provenance, approval state, lock state, and version. The human interface and every WebMCP tool call invoke the same action layer. Read tools use `readOnlyHint`; mutation tools use narrow JSON schemas and validate permissions, locked state, and object IDs. Proposals are intentionally non-canonical until a human approves them; only then do their structured shared-state operations apply.
 
-## Demo narration (about 2:32)
+## Demo narration (target: 1:35)
 
-### 0:00–0:13 — Thesis
+### 0:00–0:10 — Thesis
 
 **On screen:** Commonplace landing page, then Open Project Aurora.
 
 **Read aloud:** “For decades, websites have had interfaces for people and APIs for machines. Commonplace asks what happens when both work in the same place.”
 
-### 0:13–0:35 — Shared workspace
+### 0:10–0:20 — Shared workspace
 
 **On screen:** Project Aurora canvas with its semantic groups, connections, and launch-date card.
 
 **Read aloud:** “This is a product launch workspace. People can see and move the cards. An agent sees the exact same cards as structured semantic objects, including their type, relationships, provenance, approvals, and locks.”
 
-### 0:35–0:55 — WebMCP work
+### 0:20–0:38 — Native WebMCP work
 
-**On screen:** Agent activity and the agent proposal.
+**On screen:** In ChatGPT’s in-app browser or Chrome with WebMCP enabled, issue the native-agent prompt; show `get_history` and `get_objects` in the **Native WebMCP** trace.
 
-**Read aloud:** “Through WebMCP, the agent inspected the workspace, organized its work into four areas, created dependencies, and discovered a conflict: beta feedback is too close to an October 14 launch. It does not silently change the plan. It makes a proposal.”
+**Read aloud:** “The agent uses explicit WebMCP tools, not guessed clicks. It reads the attributable history and the exact structured objects that matter: the launch date, beta evidence, and blocked signup work.”
 
-### 0:55–1:20 — Human authority
+### 0:38–0:52 — Proposal, not autopilot
 
-**On screen:** Proposal details; select Accept all; show Human confirmed and activity log.
+**On screen:** Native `propose_changes` call and the `October 14 → October 28` proposal.
 
-**Read aloud:** “The person stays in control. Accepting the proposal moves the date to October 21 in the shared canonical state and records that a human approved it. The agent can now continue from this real decision, not an outdated chat response.”
+**Read aloud:** “The proposal is visible, but the shared date has not changed. The agent can recommend; it cannot quietly commit team reality.”
 
-### 1:20–1:42 — Evidence changes the agent’s next move
+### 0:52–1:10 — Fresh human evidence
 
-**On screen:** Select Beta feedback; click **Add critical beta evidence**; show the stale proposal message; click **Preview local re-check path** for the browser-independent demo, then point to `get_history`, `get_objects`, and the replacement proposal in Agent Trace.
+**On screen:** Add critical Beta evidence. Show the stale-proposal state, then the re-check trace and replacement proposal.
 
-**Read aloud:** “Now the person adds nine critical onboarding regressions. Commonplace immediately makes the old proposal stale, so it cannot be accepted against outdated evidence. A WebMCP agent must re-read the human change and the affected objects before proposing again. This is not a chat transcript—it is a shared artifact with freshness rules.”
+**Read aloud:** “Now the person adds nine critical onboarding regressions. The old proposal immediately freezes. Before recommending again, an agent must re-read the changed evidence and affected decision.”
 
-### 1:42–2:02 — Permission boundary
+### 1:10–1:24 — Human authority becomes canonical state
 
-**On screen:** Agent access modal; point out delete is off.
+**On screen:** Click **Accept all**. Show `Decision confirmed by human`, October 28, linked objects, and retained shared history.
 
-**Read aloud:** “Agent access is a set of explicit capabilities, not blanket autonomy. It can inspect, create, modify unlocked objects, reorganize, and connect. Delete is off. A human-locked brand object can be read but cannot be moved by the agent.”
+**Read aloud:** “Only the person commits the shared decision. Commonplace records that authority, keeps the evidence attached, and leaves the relationship graph intact.”
 
-### 2:02–2:14 — Generality
+### 1:24–1:35 — Closing
 
-**On screen:** Select the **Research synthesis** workspace. Show claims, evidence, contradictions, and open questions.
+**On screen:** Show the provenance legend and the separate play block.
 
-**Read aloud:** “The same shared object model works beyond launch planning. Here, Commonplace lets an agent organize research into claims, evidence, contradictions, and unanswered questions without changing its semantic language.”
-
-### 2:14–2:32 — Closing
-
-**On screen:** Reset demo, run collaboration, activity becomes Waiting on you; return to landing or present mode.
-
-**Read aloud:** “Commonplace turns agent safety and accountability into visible product experience. Agents should not merely operate websites from the outside. They should collaborate inside them.”
+**Read aloud:** “Commonplace turns safety and accountability into product behavior. People and agents work in one shared artifact, with clear provenance and human authority over what becomes true.”
 
 ## Release checklist
 
-- [x] Add the deployed HTTPS URL to Devpost.
-- [x] Add the public GitHub/GitLab/Bitbucket repository URL to Devpost.
-- [x] Confirm the MIT license badge is visible on the public repository page.
-- [ ] Upload the completed narrated demo as a public YouTube video, then add its URL.
-- [ ] Test the deployed URL in ChatGPT’s in-app browser or Chrome with WebMCP testing enabled.
+- [ ] Confirm the deployed HTTPS URL serves commit `56b9a98` or newer, including the five-second proof, provenance labels, and human-confirmation panel.
+- [x] Verify the public judge URL exposes all 12 WebMCP tools in ChatGPT’s in-app browser.
+- [x] Verify a native browser run can call `get_history`, `get_objects`, and `propose_changes`, leaving a human-reviewable proposal.
+- [x] Confirm the public GitHub/GitLab/Bitbucket repository has a visible open-source license.
+- [ ] Record the revised 1:35 narrated demo from the verified native-agent run and upload it publicly to YouTube.
+- [ ] Add the public live URL, public repo URL, public video URL, and truthful client-testing note to Devpost.
 - [ ] Save the Devpost submission before September 3, 2026 at 1:00 PM Pacific.
 - [ ] After the deadline, do not modify the submitted repo, live URL, video, or Devpost entry during judging.

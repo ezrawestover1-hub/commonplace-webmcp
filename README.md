@@ -16,18 +16,19 @@ Most web apps have a visual interface for people and a separate API for software
 
 Commonplace makes the shared artifact canonical. A **human** can click, drag, edit, connect, decide, and lock objects. An **agent** can inspect, search, create, update, move, group, transform, connect, propose, and request a decision through WebMCP. Neither gets a separate copy of the workspace.
 
-## V2 guided proof
+## The five-second proof
 
-The default workspace now opens with a four-step collaboration guide and a live **Agent trace**. It makes the exact handoff visible: inspect the semantic workspace, compare the relevant objects, create a reviewable proposal, then let a human apply the canonical change. Clicking a trace event highlights the corresponding canvas objects.
+The default workspace opens with a four-step collaboration guide and a live **Agent trace**. Click **Run the 5-second proof** to see the complete decision loop: a safe proposal, fresh human beta evidence that freezes it, an agent re-check of history and affected objects, and a fresh proposal that only a person can accept.
 
-Connection status is intentionally honest. When the browser exposes `document.modelContext.registerTool`, Commonplace reports the registered tool count. When it does not, it says so and directs judges to a WebMCP-capable host. The in-app guided walkthrough is clearly a preview of that exchange; it does not claim an autonomous external model connection.
+Connection status is intentionally honest. When the browser exposes `document.modelContext.registerTool`, Commonplace reports the registered tool count. Native tool calls, local guided-preview steps, and human decisions are visibly distinguished in the trace. When the browser does not expose WebMCP, Commonplace says so rather than claiming an agent connection.
 
 The resulting pattern is collaboration rather than autopilot:
 
 1. The agent reads the current workspace semantically.
 2. It reorganizes safe, authorized work or makes a reviewable proposal.
-3. The human changes the canvas or confirms/rejects a decision.
-4. The agent re-reads the same state and continues from the human’s change.
+3. New human evidence makes any affected pending proposal stale.
+4. The agent re-reads the same state and sends a replacement proposal.
+5. The human alone confirms the canonical shared decision.
 
 ## The Project Aurora demo
 
@@ -84,11 +85,12 @@ pnpm run build
 
 1. Open the live app and select **Open Project Aurora**.
 2. Inspect the shared workspace. The right panel starts with a proposal, not an autonomous mutation.
-3. Select **Accept all**. Confirm that `Launch date` becomes `October 21`, the state becomes **Human confirmed**, and the activity timeline records the human action.
-4. Select **View agent access**. Confirm that delete access is off while read, create, modify, reorganize, and connect are explicit capabilities.
-5. Select **Reset demo**, then **Run agent collaboration**. Confirm that the agent status becomes **Waiting on you** and the activity log records the deliberate handoff.
-6. In a WebMCP-enabled browser, ask the agent to call `inspect_workspace`, then `get_objects` for `launch-date` and `brand`. The returned object data exposes the unresolved decision and locked human object. Ask it to move `brand`; the tool rejects the action because it is human-locked.
-7. Open the workspace switcher and select **Research synthesis**. Its claims, evidence, contradictions, and open questions use the same shared object model and WebMCP tools.
+3. Select **Run the 5-second proof**. Confirm that the old date proposal freezes after human evidence, then a fresh `October 14 → October 28` proposal appears.
+4. Select **Accept all**. Confirm that `Launch date` becomes `October 28`, the state becomes **Human confirmed**, and the inspector says **Decision confirmed by human**.
+5. Select **Agent trace**. Confirm that Native WebMCP, Local preview, and Human entries remain visibly distinct.
+6. Select **View agent access**. Confirm that delete access is off while read, create, modify, reorganize, and connect are explicit capabilities.
+7. In a WebMCP-enabled browser, use this exact prompt: “Review the Aurora launch risks. Read the relevant evidence and propose a safe next launch date. Do not change shared state without my approval.” Expect `get_history`, `get_objects`, and `propose_changes`; then confirm the proposal is visible but the launch date remains unchanged until **Accept all**.
+8. Open the workspace switcher and select **Research synthesis**. Its claims, evidence, contradictions, and open questions use the same shared object model and WebMCP tools.
 
 ## Design principles
 
