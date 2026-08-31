@@ -6,9 +6,11 @@ Commonplace is a shared visual workspace where people use a canvas and agents us
 
 It was created for the [OpenAI WebMCP Challenge](https://webmcp.devpost.com/) during the August 25–September 3, 2026 submission period.
 
-## Live demo
+## Deployment status
 
-**[Open Commonplace](https://commonplace-webmcp-sigma.vercel.app)** — a public HTTPS deployment for judge access.
+The repository includes a GitHub Pages production workflow that builds, tests, and deploys `main` at `https://ezrawestover1-hub.github.io/commonplace-webmcp/` once Pages is enabled in the repository settings. This is the intended judge URL for the current release.
+
+The older Vercel URL, [`commonplace-webmcp-sigma.vercel.app`](https://commonplace-webmcp-sigma.vercel.app), is a prior release and must not be submitted as the current judge build. See [the release checklist](docs/SUBMISSION.md#release-checklist) before submitting any live URL.
 
 ## Why Commonplace
 

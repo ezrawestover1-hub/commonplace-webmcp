@@ -78,7 +78,7 @@ Commonplace is a React + TypeScript + Vite app. Every workspace object carries s
 
 ## Release checklist
 
-- [ ] Confirm the deployed HTTPS URL serves commit `56b9a98` or newer, including the five-second proof, provenance labels, and human-confirmation panel.
+- [ ] Enable GitHub Pages with **Source: GitHub Actions**, then confirm `https://ezrawestover1-hub.github.io/commonplace-webmcp/` serves commit `834330d` or newer, including the five-second proof, provenance labels, and human-confirmation panel.
 - [x] Verify the public judge URL exposes all 12 WebMCP tools in ChatGPT’s in-app browser.
 - [x] Verify a native browser run can call `get_history`, `get_objects`, and `propose_changes`, leaving a human-reviewable proposal.
 - [x] Confirm the public GitHub/GitLab/Bitbucket repository has a visible open-source license.
