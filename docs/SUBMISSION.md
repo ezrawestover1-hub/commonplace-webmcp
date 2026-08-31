@@ -2,7 +2,7 @@
 
 ## Live URL
 
-https://commonplace-webmcp-sigma.vercel.app
+https://commonplace-webmcp.pages.dev/
 
 ## Devpost tagline
 
@@ -31,6 +31,10 @@ This is the experience that was difficult before: not a chat transcript that kee
 ### How it was implemented
 
 Commonplace is a React + TypeScript + Vite app. Every workspace object carries semantic type, position, relationship data, actor provenance, approval state, lock state, and version. The human interface and every WebMCP tool call invoke the same action layer. Read tools use `readOnlyHint`; mutation tools use narrow JSON schemas and validate permissions, locked state, and object IDs. Proposals are intentionally non-canonical until a human approves them; only then do their structured shared-state operations apply.
+
+### Devpost testing note
+
+Tested in **ChatGPT's in-app browser** at `https://commonplace-webmcp.pages.dev/`. The browser registered all 12 Commonplace WebMCP tools. A native test invoked `get_history`, `get_objects`, and `propose_changes` against Project Aurora; the app displayed each row as **Native WebMCP** and left the resulting October 28 change proposal pending for human review. A separate public-session test ran the five-second evidence-freshness loop through a human acceptance, confirming the `Decision confirmed by human` state and retained linked objects.
 
 ## Demo narration (target: 1:35)
 

@@ -39,7 +39,7 @@ The included workspace is a deliberately messy product-launch plan. It demonstra
 - Semantic groups for Product, Research, Marketing, and Operations.
 - Agent-created dependencies that are visible as canvas connections.
 - A low-confidence launch-date assumption that becomes a human decision.
-- A proposal to move the date from October 14 to October 21 without silently changing canonical state.
+- A reviewable proposal to move the date from October 14 to October 28 without silently changing canonical state.
 - Human acceptance that updates the real decision object and records provenance.
 - A locked brand-identity object: agents can read it but cannot move or modify it.
 - A second **Research synthesis** workspace that uses the same tools to organize claims, evidence, contradictions, and open questions.
