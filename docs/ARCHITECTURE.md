@@ -11,11 +11,11 @@ Commonplace has a single canonical `WorkspaceState`. It stores object semantics,
             ┌────────────────┴────────────────┐
             │                                 │
        Human interface                    WebMCP tools
-    click, drag, accept                 inspect, create,
-    select, review                      update, move, propose
+   update evidence, accept              inspect, re-read,
+      select, review                       propose, request
 ```
 
-The visual UI never maintains a separate agent representation. Both entry points invoke `workspaceActions`.
+The consequential decision transitions never maintain a separate agent representation. Human evidence edits and human acceptance, as well as WebMCP reads and proposal creation, invoke `workspaceActions`. Canvas dragging is intentionally presentational in this focused demo: it helps a person arrange their view but does not claim to persist or mutate the decision model.
 
 ## Semantic objects
 

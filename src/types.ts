@@ -40,11 +40,14 @@ export interface ActivityEvent {
 
 export interface Proposal {
   id: string;
+  contractId: string;
   title: string;
   summary: string;
   reason: string;
   changes: string[];
   objectIds: string[];
+  citations: Array<{ label: string; objectId?: string }>;
+  groundedOn: { evidenceObjectId: string; evidenceVersion: number; summary: string; at: string };
   confidence: number;
   status: "pending" | "stale" | "accepted" | "rejected";
   operations?: ProposalOperation[];
@@ -66,4 +69,10 @@ export interface WorkspaceState {
   agentStatus: "connected" | "working" | "waiting";
   permissions: Record<"read" | "create" | "modify" | "reorganize" | "connect" | "delete", boolean>;
   proposal?: Proposal;
+  evidenceRecheck?: {
+    evidenceObjectId: string;
+    evidenceVersion: number;
+    historyRead: boolean;
+    objectsRead: boolean;
+  };
 }

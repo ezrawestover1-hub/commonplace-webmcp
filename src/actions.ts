@@ -67,18 +67,30 @@ export const workspaceActions = {
     const next = { ...connection, id: crypto.randomUUID(), createdBy: actor };
     return withEvent({ ...state, connections: [...state.connections, next] }, actor, "Created a dependency", [connection.from, connection.to]);
   },
-  propose: (state: WorkspaceState, proposal: Proposal): WorkspaceState => withEvent({ ...state, proposal, agentStatus: "waiting" }, "agent", `Proposed ${proposal.changes.length} changes`, proposal.objectIds),
+  propose: (state: WorkspaceState, proposal: Proposal): WorkspaceState => {
+    if (state.proposal?.status === "stale" && (!state.evidenceRecheck?.historyRead || !state.evidenceRecheck?.objectsRead)) {
+      throw new Error("The agent must re-read the changed history and affected objects before proposing again.");
+    }
+    return withEvent({ ...state, proposal, evidenceRecheck: undefined, agentStatus: "waiting" }, "agent", `Proposed ${proposal.changes.length} changes`, proposal.objectIds);
+  },
   markProposalStale: (state: WorkspaceState, objectId: string): WorkspaceState => {
     if (!state.proposal || state.proposal.status !== "pending" || !state.proposal.objectIds.includes(objectId)) return state;
-    return withEvent({ ...state, proposal: { ...state.proposal, status: "stale" }, agentStatus: "waiting" }, "system", "Human evidence changed; the prior agent proposal is stale", [objectId, ...state.proposal.objectIds]);
+    const evidence = state.objects.find((object) => object.id === objectId);
+    return withEvent({ ...state, proposal: { ...state.proposal, status: "stale" }, evidenceRecheck: { evidenceObjectId: objectId, evidenceVersion: evidence?.version ?? 0, historyRead: false, objectsRead: false }, agentStatus: "waiting" }, "system", "Human evidence changed; the prior agent proposal is stale", [objectId, ...state.proposal.objectIds]);
+  },
+  recordEvidenceRecheck: (state: WorkspaceState, kind: "history" | "objects", objectIds?: string[]): WorkspaceState => {
+    const recheck = state.evidenceRecheck;
+    if (!recheck || !objectIds?.includes(recheck.evidenceObjectId)) return state;
+    return { ...state, evidenceRecheck: { ...recheck, historyRead: recheck.historyRead || kind === "history", objectsRead: recheck.objectsRead || kind === "objects" } };
   },
   proposeEvidenceRecheck: (state: WorkspaceState): WorkspaceState => {
     const beta = state.objects.find((object) => object.id === "beta-feedback");
     const proposal: Proposal = {
-      id: "aurora-evidence-recheck", title: "Re-check launch after beta evidence", summary: "October 14 → October 28", reason: `The human updated Beta feedback to “${beta?.content ?? "new evidence"}.” A later date protects time to resolve the reported onboarding regressions.`, changes: ["Move launch date to October 28", "Schedule onboarding regression review", "Keep beta evidence attached to the decision"], objectIds: ["launch-date", "beta-feedback", "fix-signup"], confidence: 93, status: "pending",
+      id: "aurora-evidence-recheck", contractId: "P-015", title: "Re-check launch after beta evidence", summary: "October 14 → October 28", reason: `Recommend October 28. Beta evidence v${beta?.version ?? 5} now reports ${beta?.content ?? "critical onboarding regressions"}; the signup dependency remains blocked; P-014 was grounded on v4 and is no longer valid.`, changes: ["Move launch date to October 28", "Schedule onboarding regression review", "Keep beta evidence attached to the decision"], objectIds: ["launch-date", "beta-feedback", "fix-signup"], citations: [{ label: `Beta feedback v${beta?.version ?? 5}`, objectId: "beta-feedback" }, { label: "Fix signup bug", objectId: "fix-signup" }, { label: "Human update at 10:12 AM" }], groundedOn: { evidenceObjectId: "beta-feedback", evidenceVersion: beta?.version ?? 5, summary: beta?.content ?? "68 responses · 9 critical onboarding regressions", at: "10:12 AM" }, confidence: 93, status: "pending",
       operations: [{ kind: "update", id: "launch-date", patch: { content: "October 28", status: "confirmed", confidence: 93, approval: "approved" } }]
     };
-    return workspaceActions.propose(state, proposal);
+    const rechecked = workspaceActions.recordEvidenceRecheck(workspaceActions.recordEvidenceRecheck(state, "history", ["beta-feedback"]), "objects", ["beta-feedback", "launch-date", "fix-signup"]);
+    return workspaceActions.propose(rechecked, proposal);
   },
   acceptProposal: (state: WorkspaceState): WorkspaceState => {
     if (!state.proposal || state.proposal.status !== "pending") return state;

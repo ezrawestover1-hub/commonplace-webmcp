@@ -16,7 +16,7 @@ export const createAuroraWorkspace = (): WorkspaceState => ({
     { id: "fix-signup", type: "task", title: "Fix signup bug", groupId: "product", x: 104, y: 174, status: "blocked", priority: "high", createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
     { id: "onboarding", type: "task", title: "Improve onboarding", groupId: "product", x: 104, y: 242, priority: "high", createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
     { id: "analytics", type: "task", title: "Set up analytics", groupId: "product", x: 104, y: 310, priority: "medium", createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
-    { id: "beta-feedback", type: "note", title: "Beta feedback", content: "42 responses", groupId: "research", x: 568, y: 174, createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
+    { id: "beta-feedback", type: "note", title: "Beta feedback", content: "42 responses", groupId: "research", x: 568, y: 174, createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 4 },
     { id: "interviews", type: "note", title: "Customer interviews", content: "18 interviews", groupId: "research", x: 568, y: 242, createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
     { id: "beta-group", type: "task", title: "Beta group: 50", groupId: "research", x: 568, y: 310, priority: "medium", createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
     { id: "landing", type: "task", title: "Landing page", groupId: "marketing", x: 104, y: 510, priority: "high", createdBy: "human", modifiedBy: "agent", approval: "not_required", version: 2 },
@@ -34,7 +34,7 @@ export const createAuroraWorkspace = (): WorkspaceState => ({
     { id: "c4", from: "fix-signup", to: "launch-date", relationship: "blocks", createdBy: "agent" }
   ],
   proposal: {
-    id: "aurora-date-proposal", title: "Move launch date", summary: "October 14 → October 21", reason: "Beta feedback completes October 10. Moving the launch keeps a full week to incorporate critical improvements.", changes: ["Move launch date to October 21", "Reschedule launch checklist", "Move support briefing", "Move infrastructure scale plan"], objectIds: ["launch-date", "beta-feedback", "support"], confidence: 87, status: "pending"
+    id: "aurora-date-proposal", contractId: "P-014", title: "Move launch date", summary: "October 14 → October 21", reason: "Beta evidence v4 reports 42 responses. Moving the launch keeps a full week to incorporate the critical improvements already identified.", changes: ["Move launch date to October 21", "Reschedule launch checklist", "Move support briefing", "Move infrastructure scale plan"], objectIds: ["launch-date", "beta-feedback", "support"], citations: [{ label: "Beta feedback v4", objectId: "beta-feedback" }, { label: "Fix signup bug", objectId: "fix-signup" }], groundedOn: { evidenceObjectId: "beta-feedback", evidenceVersion: 4, summary: "42 beta responses", at: "9:42 AM" }, confidence: 87, status: "pending"
   },
   activity: [
     event("e1", "agent", "Read 26 objects", "9:41 AM"),

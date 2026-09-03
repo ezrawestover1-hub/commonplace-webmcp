@@ -49,7 +49,7 @@ describe("Commonplace shared action layer", () => {
   it("applies the structured operations that a human accepts", () => {
     const workspace = createAuroraWorkspace();
     const proposed = workspaceActions.propose(workspace, {
-      id: "generic-proposal", title: "Convert evidence", summary: "Note → task", reason: "Makes the follow-up actionable.", changes: ["Convert beta feedback"], objectIds: ["beta-feedback"], confidence: 88, status: "pending",
+      id: "generic-proposal", contractId: "P-TEST", title: "Convert evidence", summary: "Note → task", reason: "Makes the follow-up actionable.", changes: ["Convert beta feedback"], objectIds: ["beta-feedback"], citations: [{ label: "Beta feedback v4", objectId: "beta-feedback" }], groundedOn: { evidenceObjectId: "beta-feedback", evidenceVersion: 4, summary: "42 responses", at: "9:42 AM" }, confidence: 88, status: "pending",
       operations: [{ kind: "transform", id: "beta-feedback", type: "task" }]
     });
     const accepted = workspaceActions.acceptProposal(proposed);
@@ -66,12 +66,40 @@ describe("Commonplace shared action layer", () => {
     expect(stale.activity.at(-1)?.text).toContain("proposal is stale");
   });
 
+  it("preserves the versioned Evidence Contract from P-014 through cited P-015", () => {
+    const initial = createAuroraWorkspace();
+    expect(initial.proposal).toMatchObject({ contractId: "P-014", groundedOn: { evidenceVersion: 4, summary: "42 beta responses" } });
+
+    const updated = workspaceActions.updateObject(initial, "beta-feedback", { content: "68 responses · 9 critical onboarding regressions" }, "human");
+    const stale = workspaceActions.markProposalStale(updated, "beta-feedback");
+    expect(stale.proposal?.status).toBe("stale");
+    expect(stale.evidenceRecheck).toMatchObject({ evidenceObjectId: "beta-feedback", evidenceVersion: 5, historyRead: false, objectsRead: false });
+
+    const fresh = workspaceActions.proposeEvidenceRecheck(stale);
+    expect(fresh.proposal).toMatchObject({ contractId: "P-015", groundedOn: { evidenceVersion: 5 } });
+    expect(fresh.proposal?.citations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Beta feedback v5", objectId: "beta-feedback" }),
+      expect.objectContaining({ label: "Fix signup bug", objectId: "fix-signup" }),
+      expect.objectContaining({ label: "Human update at 10:12 AM" })
+    ]));
+  });
+
   it("creates a new reviewable proposal only after the evidence re-check path", () => {
     const stale = workspaceActions.markProposalStale(createAuroraWorkspace(), "beta-feedback");
     const rechecked = workspaceActions.proposeEvidenceRecheck(stale);
     expect(rechecked.proposal?.status).toBe("pending");
     expect(rechecked.proposal?.summary).toContain("October 28");
     expect(workspaceActions.acceptProposal(rechecked).objects.find((object) => object.id === "launch-date")?.content).toBe("October 28");
+  });
+
+  it("enforces fresh history and object reads before an agent can replace a stale proposal", () => {
+    const stale = workspaceActions.markProposalStale(createAuroraWorkspace(), "beta-feedback");
+    const replacement = { id: "replacement", contractId: "P-015", title: "Fresh launch recommendation", summary: "October 14 → October 28", reason: "New evidence was reviewed.", changes: ["Move launch date"], objectIds: ["launch-date", "beta-feedback"], citations: [{ label: "Beta feedback v5", objectId: "beta-feedback" }], groundedOn: { evidenceObjectId: "beta-feedback", evidenceVersion: 5, summary: "68 responses", at: "10:12 AM" }, confidence: 93, status: "pending" as const };
+    expect(() => workspaceActions.propose(stale, replacement)).toThrow("must re-read");
+    const historyRead = workspaceActions.recordEvidenceRecheck(stale, "history", ["beta-feedback"]);
+    expect(() => workspaceActions.propose(historyRead, replacement)).toThrow("must re-read");
+    const rechecked = workspaceActions.recordEvidenceRecheck(historyRead, "objects", ["beta-feedback", "launch-date"]);
+    expect(workspaceActions.propose(rechecked, replacement).proposal?.status).toBe("pending");
   });
 
   it("enforces connection permission for an agent while allowing a human relationship", () => {

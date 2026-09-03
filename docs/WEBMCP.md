@@ -1,91 +1,67 @@
-# Commonplace WebMCP tool contracts
+# Commonplace WebMCP decision contract
 
-Commonplace uses the browser-native `document.modelContext.registerTool` API. Registration is feature-detected so the conventional human interface continues to work in unsupported browsers.
+Commonplace uses `document.modelContext.registerTool` to expose a small, decision-specific WebMCP contract. It does not ask an agent to guess from pixels or operate a generic canvas. It gives the agent the exact information and constrained actions needed to keep a launch decision fresh.
 
-The status indicator is intentionally conservative: it shows **WebMCP live** only after every registration promise resolves. If the browser does not expose WebMCP, or a tool fails to register, the interface says so rather than implying an agent connection exists.
+## The six browser-native tools
 
-The production deployment opts into an origin agent cluster and limits the `tools` Permissions Policy to the same origin, aligning with WebMCP's current document-isolation and permissions requirements.
+| Tool | Role | Side effect |
+| --- | --- | --- |
+| `get_decision_context` | Reads the decision, authority boundary, active proposal, evidence version, and blocker | Read-only |
+| `get_evidence_changes` | Detects whether a human update invalidated an earlier proposal | Read-only |
+| `get_evidence_objects` | Reads the current Beta evidence, launch decision, and signup blocker | Read-only; records the required evidence re-check |
+| `get_decision_history` | Reads attributable history, including the human update that revoked a proposal | Read-only; records the required history re-check |
+| `propose_decision_update` | Creates a cited, non-canonical decision proposal | Changes review state only |
+| `request_human_confirmation` | Hands a fresh proposal to the human decision owner | Cannot confirm or alter canonical state |
 
-## Read-only tools
+Read tools are marked with `readOnlyHint`. All inputs use narrow JSON schemas. The human UI and the tools share the same action layer, so a tool cannot bypass freshness validation or human authority.
 
-### `inspect_workspace`
+## Evidence Contract
 
-Returns the workspace name, object count, selected object, group names, permission map, and agent status. Use it first to learn the semantic environment.
+Every proposal carries a human-readable contract:
 
-### `search_objects`
+```text
+P-014
+Grounded on: Beta feedback v4 — 42 responses
 
-Accepts optional `query`, `type`, `groupId`, and `status` filters. Returns matching structured objects, capped at 25.
+Human changes evidence
 
-### `get_objects`
+Beta feedback v5 — 68 responses, 9 critical onboarding regressions
+Result: P-014 invalidated
 
-Accepts optional object IDs and returns detailed object records plus relationships touching those objects. It is the safe way to inspect locks, ownership, confidence, approvals, and dependencies.
+Required agent path:
+get_decision_history → get_evidence_objects → propose_decision_update
 
-### `get_history`
+P-015 cites Beta feedback v5, the signup blocker, and the human update.
+Only a human may confirm it.
+```
 
-Returns attributable activity events. The agent should use this after a human changes the canvas instead of assuming that a prior plan is still authoritative.
-
-## Mutation tools
-
-### `create_objects`
-
-Creates up to 20 semantic notes, tasks, decisions, groups, or headings. The agent needs create permission.
-
-### `update_objects`
-
-Updates permitted, unlocked objects. It accepts only title, content, status, priority, and confidence fields—never arbitrary property injection.
-
-### `move_objects`
-
-Moves up to 40 permitted, unlocked objects to explicit canvas coordinates. This is a semantic layout action, not GUI automation.
-
-### `group_objects`
-
-Assigns one or more existing unlocked objects to an existing semantic group. The card placement visible to people and the `groupId` readable by agents change through the same action.
-
-### `transform_objects`
-
-Changes an unlocked object's semantic type—for example, a note to a task or decision. The human-visible card, inspector, and agent-readable object remain in sync.
-
-### `connect_objects`
-
-Creates a `depends_on`, `supports`, `blocks`, or `related_to` relationship after validating both IDs.
-
-### `propose_changes`
-
-Creates a human-visible proposal with a reason, affected objects, confidence, and a concise list of proposed changes. A proposal can include structured update, move, group, and transform operations, but none commit to canonical state until the human accepts.
-
-### `request_human_decision`
-
-Creates or updates a decision with an explicit prompt and options. This lets the agent surface uncertainty rather than fabricate a resolution.
+If an agent skips either required read after the evidence changes, `propose_decision_update` rejects the replacement. The visible Evidence Contract changes from **Grounded on v4** to **Superseded by human update**, then **Re-grounded on v5**, and finally **Confirmed by human**.
 
 ## Example native agent path
 
 ```text
-get_history({ objectIds: ["beta-feedback", "launch-date"] })
-  → read the attributable history before relying on a prior launch recommendation
+get_decision_context({})
+  → reads the current authority boundary and P-014 grounded on Beta v4
 
-get_objects({ objectIds: ["beta-feedback", "launch-date", "fix-signup"] })
-  → read fresh human evidence, the unresolved decision, and its blocked dependency
+human adds Beta v5
+  → P-014 is invalidated
 
-propose_changes({ ... October 14 → October 28 ... })
-  → shared workspace displays a reviewable proposal; canonical date is unchanged
+get_decision_history({})
+get_evidence_objects({ objectIds: ["beta-feedback", "launch-date", "fix-signup"] })
+propose_decision_update({ contractId: "P-015", ... })
+  → creates a cited, non-canonical October 28 recommendation
 
-human accepts in the UI
-  → structured operations update the canonical decision and attribute the commit to the human
+request_human_confirmation({ contractId: "P-015", ... })
+human confirms in the UI
+  → October 28 becomes canonical and remains attributed to the human
 ```
-
-This loop is the point of the app: human and agent continuously work on one persistent artifact.
-
-## Evidence freshness rule
-
-When a human edits evidence that an active proposal relied on, Commonplace marks that proposal **stale** and disables acceptance. An agent must re-read `get_history` and `get_objects` before submitting a replacement `propose_changes` call. This makes the human edit consequential: it cannot be silently overwritten or accepted against outdated reasoning.
 
 ## Trace provenance
 
-The interface records the origin of every visible trace entry:
+The interface distinguishes:
 
-- **Native WebMCP** — a tool invocation supplied by the browser’s WebMCP capability.
-- **Local preview** — the deterministic in-product walkthrough used when a judge wants to understand the behavior without an external agent prompt.
-- **Human** — an edit, acceptance, or other authority-bearing UI decision.
+- **Native WebMCP** — browser-supplied tool invocation.
+- **Local demo** — deterministic walkthrough for explaining the flow.
+- **Human** — evidence edits and authority-bearing confirmation.
 
-This prevents a guided demo from being mistaken for a live agent run while still making the safety rule easy to inspect.
+This separation keeps the demo truthful while letting a judge inspect the same safety rule through a real browser-native tool path.
